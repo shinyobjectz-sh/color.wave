@@ -22,6 +22,12 @@ import { createPluginApi, teardownPluginApi } from "./pluginApi.svelte.js";
 const PLUGINS_LIST = "plugins";
 const MAX_PLUGIN_BYTES = 5 * 1024 * 1024; // 5 MB single-plugin source cap
 
+// Default registry — Plugin Manager auto-subscribes to this on open.
+// Override per-workbook by setting window.__COLORWAVE_REGISTRY_URL or
+// adding a custom registry under Settings (future P4).
+const DEFAULT_REGISTRY_URL =
+  "https://raw.githubusercontent.com/shinyobjectz-sh/color-wave-plugins/main/registry.json";
+
 /**
  * Plugin record shape (JSON in the Loro list):
  *
@@ -48,6 +54,12 @@ class PluginsStore {
   // Active plugin instances keyed by id — { api, deactivate }.
   // Not persisted; rebuilt on every load from the list.
   _instances = new Map();
+
+  // Registry — fetched lazily on first access (typically when the
+  // PluginManager modal opens). Shape:
+  //   { status: "idle"|"loading"|"loaded"|"error", entries: [...], url, error }
+  // Not persisted — every session re-fetches; the catalog is small.
+  registry = $state({ status: "idle", entries: [], url: DEFAULT_REGISTRY_URL, error: "" });
 
   constructor() {
     if (getDoc()) this._hydrateFromDoc();
@@ -261,6 +273,65 @@ class PluginsStore {
     else await this._deactivate(id);
   }
 
+  // ── registry ────────────────────────────────────────────────────
+
+  /**
+   * Fetch the default plugin registry. Idempotent — repeated calls
+   * while loading return the in-flight promise; once loaded, returns
+   * immediately. Pass `{ force: true }` to bust the cache.
+   */
+  async loadRegistry({ force = false, url = null } = {}) {
+    const target = url ?? this.registry.url ?? DEFAULT_REGISTRY_URL;
+    if (!force) {
+      if (this.registry.status === "loaded" && this.registry.url === target) {
+        return this.registry.entries;
+      }
+      if (this._registryPromise) return this._registryPromise;
+    }
+    this.registry = { status: "loading", entries: [], url: target, error: "" };
+    this._registryPromise = (async () => {
+      try {
+        const r = await fetch(target, { cache: "no-store" });
+        if (!r.ok) throw new Error(`registry fetch failed: ${r.status} ${r.statusText}`);
+        const data = await r.json();
+        const entries = Array.isArray(data?.plugins) ? data.plugins : [];
+        this.registry = { status: "loaded", entries, url: target, error: "" };
+        return entries;
+      } catch (e) {
+        const msg = e?.message ?? String(e);
+        this.registry = { status: "error", entries: [], url: target, error: msg };
+        throw e;
+      } finally {
+        this._registryPromise = null;
+      }
+    })();
+    return this._registryPromise;
+  }
+
+  /** Install a plugin by registry entry id. Resolves the latest URL
+   * from the registry, then runs the standard `install(url)` flow. */
+  async installFromRegistry(entryId, { enable = true } = {}) {
+    if (this.registry.status !== "loaded") await this.loadRegistry();
+    const entry = this.registry.entries.find((e) => e.id === entryId);
+    if (!entry) throw new Error(`registry entry not found: ${entryId}`);
+    if (!entry.latest?.url) throw new Error(`registry entry '${entryId}' has no latest.url`);
+    return this.install(entry.latest.url, { enable });
+  }
+
+  /** For a given installed plugin id, return the registry's latest
+   * version info if newer than what's installed (else null). */
+  getRegistryUpdate(id) {
+    if (this.registry.status !== "loaded") return null;
+    const installed = this.items.find((p) => p.id === id);
+    if (!installed) return null;
+    const entry = this.registry.entries.find((e) => e.id === id);
+    if (!entry?.latest?.version) return null;
+    if (compareVersions(entry.latest.version, installed.version) > 0) {
+      return { version: entry.latest.version, url: entry.latest.url };
+    }
+    return null;
+  }
+
   // ── activation ──────────────────────────────────────────────────
 
   async _activate(record) {
@@ -323,6 +394,19 @@ class PluginsStore {
 // Plugins are JS modules; we evaluate them in the studio's context
 // via a Blob URL + dynamic import. The blob is revoked synchronously
 // after import resolves (the module reference holds the lifetime).
+
+// Best-effort semver compare; returns 1 if a > b, -1 if a < b, 0 if equal.
+// Tolerates missing patch/minor; ignores any pre-release suffix beyond
+// the first dash. Plugins use simple x.y.z so this is sufficient.
+function compareVersions(a, b) {
+  const parse = (v) => String(v ?? "0").split("-")[0].split(".").map((n) => parseInt(n, 10) || 0);
+  const pa = parse(a), pb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    const x = pa[i] ?? 0, y = pb[i] ?? 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
 
 async function loadModuleFromCode(code) {
   const blob = new Blob([code], { type: "application/javascript" });
