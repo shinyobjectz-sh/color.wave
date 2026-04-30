@@ -206,6 +206,19 @@ function makeRuntime({ autoplay }) {
     if (m.type === "seek")     { syncTo(+m.value || 0); parent.postMessage({ type: "tick", t, total }, "*"); }
     if (m.type === "restart")  restart();
   });
+
+  // Forward Cmd+S / Ctrl+S to the parent. The composition iframe is
+  // sandboxed and steals focus when the user clicks in the player, so
+  // the parent's document-level save handler never sees the keypress
+  // otherwise. Capture-phase + preventDefault to suppress the browser's
+  // "Save Page As" on the iframe content.
+  window.addEventListener("keydown", (e) => {
+    const isSave = (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey
+                && (e.key === "s" || e.key === "S");
+    if (!isSave) return;
+    e.preventDefault();
+    parent.postMessage({ type: "save" }, "*");
+  }, { capture: true });
 })();
 `;
   return "<" + "script>" + initBody + "</" + "script>";

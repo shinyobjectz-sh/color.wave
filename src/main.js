@@ -48,4 +48,14 @@ import { bootstrapLoro } from "./lib/loroBackend.svelte.js";
     // restored bytes.
   }
   mount(App, { target: document.getElementById("app") });
+
+  // Forward "save" messages from the composition iframe to the SDK's
+  // save handler. The iframe is sandboxed and captures Cmd+S when it
+  // has focus; its bootstrap (initial.js → IFRAME_RUNTIME) catches
+  // the keypress and posts here. window.workbookSave is exposed by
+  // the SDK saveHandler.mjs at runtime.
+  window.addEventListener("message", (ev) => {
+    if (ev.data?.type !== "save") return;
+    if (typeof window.workbookSave === "function") window.workbookSave();
+  });
 })();
