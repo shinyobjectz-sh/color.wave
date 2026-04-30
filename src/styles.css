@@ -1,36 +1,44 @@
 @import "tailwindcss";
 
 @theme {
-  --color-page:     #0c0a09;
-  --color-surface:  #1c1917;
-  --color-surface-2:#292524;
-  --color-fg:       #fafaf9;
-  --color-fg-muted: #a8a29e;
-  --color-fg-faint: #57534e;
-  --color-border:   #292524;
-  --color-border-2: #44403c;
-  --color-accent:   #fed7aa;
-  --color-accent-fg:#7c2d12;
+  /* Strict monochromatic slate palette. The chrome is intentionally
+   * neutral — only the composition preview should carry color. Values
+   * track Tailwind's slate scale so any utility (slate-*) drops in
+   * cleanly alongside these tokens. Semantic state colors (rose for
+   * errors, amber for warnings, emerald for success) live in the
+   * components themselves and are NOT redefined here. */
+  --color-page:     #020617; /* slate-950 */
+  --color-surface:  #0f172a; /* slate-900 */
+  --color-surface-2:#1e293b; /* slate-800 */
+  --color-fg:       #f8fafc; /* slate-50  */
+  --color-fg-muted: #94a3b8; /* slate-400 */
+  --color-fg-faint: #475569; /* slate-600 */
+  --color-border:   #1e293b; /* slate-800 */
+  --color-border-2: #334155; /* slate-700 */
+  --color-accent:   #cbd5e1; /* slate-300 — focus / selection cue */
+  --color-accent-fg:#020617; /* slate-950 — text on accent fill    */
 
   /* Timeline editor — single source for clip / ruler / gutter visual
    * states. Mirrors HyperFrames Studio's `jg` theme object so we can
-   * be skinned to match. Reference everywhere via var(--studio-*). */
-  --color-studio-accent:        #fed7aa;
-  --color-studio-clip-bg:       color-mix(in srgb, #fed7aa 14%, transparent);
-  --color-studio-clip-bg-hover: color-mix(in srgb, #fed7aa 24%, transparent);
-  --color-studio-clip-bg-active:color-mix(in srgb, #fed7aa 36%, transparent);
-  --color-studio-clip-bg-drag:  color-mix(in srgb, #fed7aa 44%, transparent);
-  --color-studio-clip-border:   color-mix(in srgb, #fed7aa 50%, transparent);
-  --color-studio-clip-border-hover: color-mix(in srgb, #fed7aa 70%, transparent);
-  --color-studio-clip-border-active:#fed7aa;
+   * be skinned to match. Reference everywhere via var(--studio-*).
+   * The accent stays neutral so the only color on screen comes from
+   * the composition preview. */
+  --color-studio-accent:        #cbd5e1; /* slate-300 */
+  --color-studio-clip-bg:       color-mix(in srgb, #cbd5e1 8%, transparent);
+  --color-studio-clip-bg-hover: color-mix(in srgb, #cbd5e1 14%, transparent);
+  --color-studio-clip-bg-active:color-mix(in srgb, #cbd5e1 22%, transparent);
+  --color-studio-clip-bg-drag:  color-mix(in srgb, #cbd5e1 30%, transparent);
+  --color-studio-clip-border:   color-mix(in srgb, #cbd5e1 40%, transparent);
+  --color-studio-clip-border-hover: color-mix(in srgb, #cbd5e1 65%, transparent);
+  --color-studio-clip-border-active:#cbd5e1;
   --color-studio-clip-shadow:   0 1px 0 0 rgba(0,0,0,0.3), 0 0 0 0 transparent;
   --color-studio-clip-shadow-hover: 0 2px 6px rgba(0,0,0,0.35);
   --color-studio-clip-shadow-drag:  0 6px 16px rgba(0,0,0,0.45);
-  --color-studio-row-bg:        #1c1917;
-  --color-studio-gutter-bg:     #100e0d;
-  --color-studio-ruler-border:  #292524;
-  --color-studio-resize-seam:   #292524;
-  --color-studio-resize-active: #fed7aa;
+  --color-studio-row-bg:        #0f172a; /* slate-900 */
+  --color-studio-gutter-bg:     #020617; /* slate-950 */
+  --color-studio-ruler-border:  #1e293b; /* slate-800 */
+  --color-studio-resize-seam:   #1e293b; /* slate-800 */
+  --color-studio-resize-active: #cbd5e1; /* slate-300 */
 
   /* HyperFrames' distinctive non-FCP organic clip silhouette. */
   --studio-clip-radius: 11px 15px 13px 9px / 10px 14px 12px 10px;

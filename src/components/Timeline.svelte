@@ -479,13 +479,15 @@
   }
 
   /* Role-tinted clip backgrounds. Authors set data-timeline-role
-   * on a clip element and the timeline picks a hue. Anything not
+   * on a clip element and the timeline picks a tone. Under the
+   * monochromatic-slate identity every role is a slate variant —
+   * differentiation comes from fill opacity, not hue. Anything not
    * in this list falls back to the default accent. */
-  .studio-clip[data-role="caption"]   { --color-studio-clip-bg: color-mix(in srgb, #38bdf8 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #38bdf8 60%, transparent); }
-  .studio-clip[data-role="voiceover"] { --color-studio-clip-bg: color-mix(in srgb, #a78bfa 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #a78bfa 60%, transparent); }
-  .studio-clip[data-role="overlay"]   { --color-studio-clip-bg: color-mix(in srgb, #fb7185 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #fb7185 60%, transparent); }
-  .studio-clip[data-role="b-roll"]    { --color-studio-clip-bg: color-mix(in srgb, #4ade80 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #4ade80 60%, transparent); }
-  .studio-clip[data-role="audio"]     { --color-studio-clip-bg: color-mix(in srgb, #facc15 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #facc15 60%, transparent); }
+  .studio-clip[data-role="caption"]   { --color-studio-clip-bg: color-mix(in srgb, #cbd5e1 10%, transparent); --color-studio-clip-border: color-mix(in srgb, #cbd5e1 45%, transparent); }
+  .studio-clip[data-role="voiceover"] { --color-studio-clip-bg: color-mix(in srgb, #cbd5e1 14%, transparent); --color-studio-clip-border: color-mix(in srgb, #cbd5e1 55%, transparent); }
+  .studio-clip[data-role="overlay"]   { --color-studio-clip-bg: color-mix(in srgb, #94a3b8 12%, transparent); --color-studio-clip-border: color-mix(in srgb, #94a3b8 55%, transparent); }
+  .studio-clip[data-role="b-roll"]    { --color-studio-clip-bg: color-mix(in srgb, #cbd5e1 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #cbd5e1 65%, transparent); }
+  .studio-clip[data-role="audio"]     { --color-studio-clip-bg: color-mix(in srgb, #94a3b8 16%, transparent); --color-studio-clip-border: color-mix(in srgb, #94a3b8 50%, transparent); }
 
   /* Selected clip — visual prominence above hover/trim states.
    * Solid accent border + glow so multi-selection reads at a
