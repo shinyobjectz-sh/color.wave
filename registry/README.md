@@ -16,21 +16,27 @@ When a user opens the Plugin Manager, the **Browse** tab fetches `registry.json`
 | Surface | Location |
 |---|---|
 | Catalog entry | `registry/registry.json` (this dir) |
+| Built artifact (served to browsers) | `registry/assets/<id>-v<version>.js` — checked in, served via `raw.githubusercontent.com` (CORS-clean) |
 | Source | `plugins/<id>/` at the repo root |
-| Built artifact | GitHub Release asset, tagged `plugin-<id>-v<version>` |
+| Release tag | GitHub Release tagged `plugin-<id>-v<version>` — used as a changelog anchor only, NOT the asset host |
+
+> **Why not GitHub Release assets?** Browser CORS. Release assets redirect to Azure Blob storage which doesn't send `access-control-allow-origin`, so the Plugin Manager's `fetch()` would fail. `raw.githubusercontent.com` always sends `*` for public repos. We keep the GitHub Release tag for human-friendly changelogs, but the JS itself is committed to `registry/assets/` and served from there.
 
 ## Publishing a new plugin
 
 1. Add source under `plugins/<id>/` — output must be a single-file ESM bundle exporting `manifest` and `onActivate(wb)`.
 2. Build it: `bun run build` in the plugin's dir.
-3. Tag a release: `git tag plugin-<id>-v<version> && git push origin plugin-<id>-v<version>`.
-4. Attach the built `.js` as a release asset:
+3. Copy the built artifact into the registry: `cp plugins/<id>/dist/<id>.js registry/assets/<id>-v<version>.js`.
+4. (Optional, recommended) Tag + draft a release for changelog discoverability:
    ```
-   gh release create plugin-<id>-v<version> dist/<id>.js \
-     --title "Plugin: <name> v<version>" --notes "..."
+   git tag plugin-<id>-v<version>
+   git push origin plugin-<id>-v<version>
+   gh release create plugin-<id>-v<version> --notes "..."
    ```
-5. Bump `registry.json` — update `latest.version` and `latest.url` for the entry, or add a new entry.
+5. Bump `registry.json` — update `latest.version` + `latest.url` (point at `raw.githubusercontent.com/.../registry/assets/<id>-v<version>.js`).
 6. Push to `main`. Every PluginManager refresh sees the change immediately.
+
+Old versions stay reachable as long as their `<id>-v<version>.js` file remains in `registry/assets/` — useful for plugins that pin a specific version, and trivial to clean up later if a directory ever gets too big.
 
 ## Tag namespaces in this repo
 
