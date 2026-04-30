@@ -480,14 +480,14 @@
 
   /* Role-tinted clip backgrounds. Authors set data-timeline-role
    * on a clip element and the timeline picks a tone. Under the
-   * monochromatic-slate identity every role is a slate variant —
+   * monochromatic-zinc identity every role is a zinc variant —
    * differentiation comes from fill opacity, not hue. Anything not
    * in this list falls back to the default accent. */
-  .studio-clip[data-role="caption"]   { --color-studio-clip-bg: color-mix(in srgb, #cbd5e1 10%, transparent); --color-studio-clip-border: color-mix(in srgb, #cbd5e1 45%, transparent); }
-  .studio-clip[data-role="voiceover"] { --color-studio-clip-bg: color-mix(in srgb, #cbd5e1 14%, transparent); --color-studio-clip-border: color-mix(in srgb, #cbd5e1 55%, transparent); }
-  .studio-clip[data-role="overlay"]   { --color-studio-clip-bg: color-mix(in srgb, #94a3b8 12%, transparent); --color-studio-clip-border: color-mix(in srgb, #94a3b8 55%, transparent); }
-  .studio-clip[data-role="b-roll"]    { --color-studio-clip-bg: color-mix(in srgb, #cbd5e1 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #cbd5e1 65%, transparent); }
-  .studio-clip[data-role="audio"]     { --color-studio-clip-bg: color-mix(in srgb, #94a3b8 16%, transparent); --color-studio-clip-border: color-mix(in srgb, #94a3b8 50%, transparent); }
+  .studio-clip[data-role="caption"]   { --color-studio-clip-bg: color-mix(in srgb, #d4d4d8 10%, transparent); --color-studio-clip-border: color-mix(in srgb, #d4d4d8 45%, transparent); }
+  .studio-clip[data-role="voiceover"] { --color-studio-clip-bg: color-mix(in srgb, #d4d4d8 14%, transparent); --color-studio-clip-border: color-mix(in srgb, #d4d4d8 55%, transparent); }
+  .studio-clip[data-role="overlay"]   { --color-studio-clip-bg: color-mix(in srgb, #a1a1aa 12%, transparent); --color-studio-clip-border: color-mix(in srgb, #a1a1aa 55%, transparent); }
+  .studio-clip[data-role="b-roll"]    { --color-studio-clip-bg: color-mix(in srgb, #d4d4d8 18%, transparent); --color-studio-clip-border: color-mix(in srgb, #d4d4d8 65%, transparent); }
+  .studio-clip[data-role="audio"]     { --color-studio-clip-bg: color-mix(in srgb, #a1a1aa 16%, transparent); --color-studio-clip-border: color-mix(in srgb, #a1a1aa 50%, transparent); }
 
   /* Selected clip — visual prominence above hover/trim states.
    * Solid accent border + glow so multi-selection reads at a
@@ -645,7 +645,7 @@
             style="left: {tk.x}px; transform: translateX(-0.5px);"
           >
             <div class="w-px h-2 bg-fg-faint"></div>
-            <div class="font-mono text-[9px] text-fg-faint tabular-nums mt-0.5 -translate-x-1/2 whitespace-nowrap">
+            <div class="font-mono text-[9px] text-fg-faint tabular-nums mt-0.5 -tranzinc-x-1/2 whitespace-nowrap">
               {fmtTime(tk.t)}
             </div>
           </div>
@@ -739,9 +739,9 @@
           class="absolute top-[-12px] bottom-[-2px] pointer-events-none"
           style="left: {playheadPx}px;"
         >
-          <div class="absolute top-0 bottom-0 w-0.5 -translate-x-1/2 bg-accent"
+          <div class="absolute top-0 bottom-0 w-0.5 -tranzinc-x-1/2 bg-accent"
                style="box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 70%, transparent);"></div>
-          <div class="absolute -top-1.5 left-0 -translate-x-1/2 w-3 h-3 rounded-full bg-accent border-2 border-page"
+          <div class="absolute -top-1.5 left-0 -tranzinc-x-1/2 w-3 h-3 rounded-full bg-accent border-2 border-page"
                style="box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 60%, transparent);"></div>
         </div>
 
@@ -751,8 +751,8 @@
             class="absolute top-[-12px] bottom-[-2px] pointer-events-none"
             style="left: {hoverX}px;"
           >
-            <div class="absolute top-0 bottom-0 w-px -translate-x-1/2 bg-fg-muted/40"></div>
-            <div class="absolute -top-5 -translate-x-1/2 px-1.5 py-0.5 rounded bg-fg text-page font-mono text-[10px] tabular-nums whitespace-nowrap">
+            <div class="absolute top-0 bottom-0 w-px -tranzinc-x-1/2 bg-fg-muted/40"></div>
+            <div class="absolute -top-5 -tranzinc-x-1/2 px-1.5 py-0.5 rounded bg-fg text-page font-mono text-[10px] tabular-nums whitespace-nowrap">
               {fmtTimeFine(hoverTime)}
             </div>
           </div>
