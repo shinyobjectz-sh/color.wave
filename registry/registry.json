@@ -16,8 +16,8 @@
       "surfaces": ["composition-decorators", "settings"],
       "permissions": [],
       "latest": {
-        "version": "0.1.0",
-        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/palette-swap-v0.1.0.js"
+        "version": "0.1.1",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/palette-swap-v0.1.1.js"
       }
     }
   ]

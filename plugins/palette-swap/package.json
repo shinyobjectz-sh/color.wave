@@ -1,6 +1,6 @@
 {
   "name": "@colorwave/plugin-palette-swap",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Recolor the entire composition with a one-click palette preset",
   "private": true,
   "type": "module",
