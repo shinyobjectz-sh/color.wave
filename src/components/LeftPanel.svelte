@@ -1,7 +1,8 @@
 <script>
   import ChatPanel from "./ChatPanel.svelte";
   import AssetsPanel from "./AssetsPanel.svelte";
-  import MCPPanel from "./MCPPanel.svelte";
+  import PluginsPanel from "./PluginsPanel.svelte";
+  import { plugins } from "../lib/plugins.svelte.js";
   import HistoryPanel from "./HistoryPanel.svelte";
   import { layout } from "../lib/layout.svelte.js";
   import { assets } from "../lib/assets.svelte.js";
@@ -56,17 +57,22 @@
       {/if}
     </button>
     <button
-      onclick={() => layout.setLeftTab("mcp")}
+      onclick={() => layout.setLeftTab("plugins")}
       class="lp-tab"
-      class:active={layout.leftTab === "mcp"}
-      aria-pressed={layout.leftTab === "mcp"}
-      title="Expose this workbook as an MCP server"
+      class:active={layout.leftTab === "plugins"}
+      aria-pressed={layout.leftTab === "plugins"}
+      title="Installed plugins — inline UIs"
     >
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="3" width="10" height="8" rx="1.2"/>
-        <path d="M5 6.5h4M5 8.5h2.5"/>
+        <rect x="2.5" y="2.5" width="4" height="4" rx="0.5"/>
+        <rect x="7.5" y="2.5" width="4" height="4" rx="0.5"/>
+        <rect x="2.5" y="7.5" width="4" height="4" rx="0.5"/>
+        <path d="M7.5 9.5h4M9.5 7.5v4"/>
       </svg>
-      <span>mcp</span>
+      <span>plugins</span>
+      {#if plugins.items.length > 0}
+        <span class="lp-count">{plugins.items.length}</span>
+      {/if}
     </button>
     <button
       onclick={() => layout.setLeftTab("history")}
@@ -105,8 +111,8 @@
   <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "assets"}>
     <AssetsPanel />
   </div>
-  <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "mcp"}>
-    <MCPPanel />
+  <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "plugins"}>
+    <PluginsPanel />
   </div>
   <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "history"}>
     <HistoryPanel />

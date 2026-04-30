@@ -231,9 +231,26 @@
             <p class="font-mono text-[11px] text-fg-faint">no plugins installed yet — head to the Browse tab.</p>
           {:else}
             <ul class="plugin-list">
-              {#each plugins.items as p (p.id)}
+              {#each plugins.items as p, idx (p.id)}
                 {@const update = plugins.getRegistryUpdate(p.id)}
-                <li class="plugin-row">
+                <li class="plugin-row plugin-row-installed">
+                  <div class="plugin-order">
+                    <button
+                      class="order-btn"
+                      onclick={() => plugins.move(p.id, -1)}
+                      disabled={idx === 0 || plugins.busy}
+                      title="Move up"
+                      aria-label="Move up"
+                    >▲</button>
+                    <button
+                      class="order-btn"
+                      onclick={() => plugins.move(p.id, +1)}
+                      disabled={idx === plugins.items.length - 1 || plugins.busy}
+                      title="Move down"
+                      aria-label="Move down"
+                    >▼</button>
+                  </div>
+
                   <label class="plugin-toggle" title="{p.enabled ? 'enabled — click to disable' : 'disabled — click to enable'}">
                     <input
                       type="checkbox"
@@ -422,6 +439,32 @@
     padding: 10px 0;
     border-bottom: 1px solid var(--color-border);
     align-items: start;
+  }
+  .plugin-row-installed {
+    grid-template-columns: auto auto 1fr auto;
+  }
+  .plugin-order {
+    display: flex; flex-direction: column; gap: 2px;
+    margin-top: 2px;
+  }
+  .order-btn {
+    width: 18px; height: 14px;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    color: var(--color-fg-muted);
+    font-size: 8px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .order-btn:hover:not(:disabled) {
+    color: var(--color-fg);
+    border-color: var(--color-fg);
+  }
+  .order-btn:disabled {
+    opacity: 0.3; cursor: not-allowed;
   }
   .browse-icon { width: 28px; display: flex; align-items: flex-start; justify-content: center; padding-top: 2px; }
   .plugin-icon-lg { font-size: 18px; }

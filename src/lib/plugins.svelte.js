@@ -260,6 +260,20 @@ class PluginsStore {
     await this._persist();
   }
 
+  /** Reorder a plugin in items[]. delta = +1 moves down, -1 up.
+   *  Order surfaces in the PluginsPanel (left-panel tab) and the
+   *  Plugin Manager Installed list. Persists immediately. */
+  async move(id, delta) {
+    const i = this.items.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    const j = i + delta;
+    if (j < 0 || j >= this.items.length) return;
+    const next = this.items.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    this.items = next;
+    await this._persist();
+  }
+
   /** Toggle enabled state. Activates / deactivates accordingly. */
   async setEnabled(id, enabled) {
     const idx = this.items.findIndex((p) => p.id === id);
