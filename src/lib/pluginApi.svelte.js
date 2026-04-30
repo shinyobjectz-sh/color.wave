@@ -208,12 +208,14 @@ export function createPluginApi(pluginId, store) {
 
   // ── wb.settings ────────────────────────────────────────────────
   api.settings = {
-    /** Add a section to the Settings modal. */
-    addSection({ label, component }) {
-      if (!component) {
-        throw new Error("wb.settings.addSection: component is required");
+    /** Add a section to the Settings modal. Pass either:
+     *   - `component` — a Svelte component (for SDK consumers shipping .svelte)
+     *   - `mount(el) -> cleanup` — imperative DOM mount (for plain-JS plugins) */
+    addSection({ label, component, mount }) {
+      if (!component && typeof mount !== "function") {
+        throw new Error("wb.settings.addSection: component or mount is required");
       }
-      const item = { pluginId, label: label ?? pluginId, component };
+      const item = { pluginId, label: label ?? pluginId, component, mount };
       appendAndTrack(api, settingsSections, item);
     },
   };
@@ -262,6 +264,15 @@ export function createPluginApi(pluginId, store) {
       const item = { pluginId, priority: priority ?? 0, transform };
       appendAndTrack(api, compositionDecorators, item);
       compositionDecorators.sort((a, b) => a.priority - b.priority);
+    },
+    /** Force the iframe to re-render. Use after a decorator's internal
+     *  state changes (e.g. palette-swap switching active preset) so
+     *  the new transform output gets picked up — the decorator list
+     *  itself didn't change, but its output did. Cheap: just bumps
+     *  composition.revision, which Player.svelte $effect-watches. */
+    async repaint() {
+      const store = await getComposition();
+      store.revision += 1;
     },
   };
 

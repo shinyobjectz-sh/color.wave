@@ -5,5 +5,20 @@
   "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/registry",
   "version": 1,
   "updated": "2026-04-30",
-  "plugins": []
+  "plugins": [
+    {
+      "id": "palette-swap",
+      "name": "Palette Swap",
+      "description": "Recolor the entire composition with a one-click palette preset. Adds a Palette section to Settings.",
+      "icon": "🎨",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/palette-swap",
+      "surfaces": ["composition-decorators", "settings"],
+      "permissions": [],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://github.com/shinyobjectz-sh/color.wave/releases/download/plugin-palette-swap-v0.1.0/palette-swap.js"
+      }
+    }
+  ]
 }

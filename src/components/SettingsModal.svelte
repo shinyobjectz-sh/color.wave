@@ -19,6 +19,20 @@
   function openOpenRouterKeysPage() {
     window.open("https://openrouter.ai/keys", "_blank", "noopener,noreferrer");
   }
+
+  // Svelte action for plugin settings sections that ship an imperative
+  // `mount(el) -> cleanup` callback instead of a Svelte component.
+  function mountSection(node, fn) {
+    let cleanup;
+    try { cleanup = fn(node); } catch (e) { console.warn("plugin settings mount threw:", e); }
+    return {
+      destroy() {
+        if (typeof cleanup === "function") {
+          try { cleanup(); } catch (e) { console.warn("plugin settings cleanup threw:", e); }
+        }
+      },
+    };
+  }
 </script>
 
 <dialog
@@ -108,7 +122,11 @@
           {section.label}
           <span class="text-fg-faint">· plugin · {section.pluginId}</span>
         </h3>
-        <section.component />
+        {#if section.component}
+          <section.component />
+        {:else if section.mount}
+          <div use:mountSection={section.mount}></div>
+        {/if}
       </div>
     {/each}
 
