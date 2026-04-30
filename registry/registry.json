@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/registry.schema.json",
+  "name": "color.wave plugin registry",
+  "description": "Default plugin catalog for color.wave",
+  "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/registry",
+  "version": 1,
+  "updated": "2026-04-30",
+  "plugins": []
+}

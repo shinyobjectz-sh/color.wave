@@ -23,10 +23,12 @@ const PLUGINS_LIST = "plugins";
 const MAX_PLUGIN_BYTES = 5 * 1024 * 1024; // 5 MB single-plugin source cap
 
 // Default registry — Plugin Manager auto-subscribes to this on open.
-// Override per-workbook by setting window.__COLORWAVE_REGISTRY_URL or
-// adding a custom registry under Settings (future P4).
+// Catalog lives in the same repo as the editor (registry/registry.json
+// on main); plugin sources/builds live under plugins/<id>/ and ship as
+// release assets tagged plugin-<id>-v<version>. Override per-workbook
+// via window.__COLORWAVE_REGISTRY_URL or future P4 Settings.
 const DEFAULT_REGISTRY_URL =
-  "https://raw.githubusercontent.com/shinyobjectz-sh/color-wave-plugins/main/registry.json";
+  "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/registry.json";
 
 /**
  * Plugin record shape (JSON in the Loro list):
