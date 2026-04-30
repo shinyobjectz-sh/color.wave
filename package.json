@@ -1,0 +1,34 @@
+{
+  "name": "colorwave",
+  "version": "0.1.0",
+  "description": "color.wave — a portable HTML AI video editor. One file, runs anywhere.",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shinyobjectz-sh/color.wave.git"
+  },
+  "homepage": "https://github.com/shinyobjectz-sh/color.wave",
+  "workspaces": [
+    "vendor/workbooks/packages/*"
+  ],
+  "scripts": {
+    "dev": "workbook dev",
+    "build": "workbook build"
+  },
+  "dependencies": {
+    "svelte": "^5.0.0",
+    "@work.books/runtime": "workspace:*",
+    "loro-crdt": "^1.0.0",
+    "just-bash": "^2.14.3"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@tailwindcss/vite": "^4.2.0",
+    "@work.books/cli": "workspace:*",
+    "tailwindcss": "^4.2.0",
+    "vite": "^6.0.0",
+    "vite-plugin-wasm": "^3.3.0"
+  }
+}
