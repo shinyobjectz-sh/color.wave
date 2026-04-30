@@ -9,15 +9,15 @@
     {
       "id": "palette-swap",
       "name": "Palette Swap",
-      "description": "One-click palette presets. Auto-detects and remaps the composition's existing colors — no author opt-in needed.",
+      "description": "Non-destructive theme override. Toggle on/off; switch presets without losing the composition's source colors.",
       "icon": "🎨",
       "author": "shinyobjectz-sh",
       "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/palette-swap",
       "surfaces": ["composition-decorators", "settings"],
       "permissions": [],
       "latest": {
-        "version": "0.1.2",
-        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/palette-swap-v0.1.2.js"
+        "version": "0.1.3",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/palette-swap-v0.1.3.js"
       }
     }
   ]
