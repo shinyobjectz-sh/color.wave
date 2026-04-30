@@ -1,3 +1,5 @@
+![color.wave](./banner.png)
+
 # color.wave
 
 A portable HTML AI video editor. One file. Runs anywhere.
