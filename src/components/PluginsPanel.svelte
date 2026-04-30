@@ -31,6 +31,26 @@
   // Map for installed-but-no-section state
   let pluginById = $derived(new Map(plugins.items.map((p) => [p.id, p])));
 
+  // Search/filter — matches against section label, plugin name/id,
+  // and description. Empty query → no filter.
+  let query = $state("");
+  let filteredSections = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return orderedSections;
+    return orderedSections.filter((s) => {
+      const p = pluginById.get(s.pluginId);
+      const hay = [
+        s.label,
+        s.pluginId,
+        p?.name,
+        p?.description,
+        p?.id,
+        ...(p?.surfaces ?? []),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  });
+
   // Collapsed cards (per-session, not persisted).
   let collapsed = $state(new Set());
   function toggle(id) {
@@ -54,7 +74,23 @@
   }
 </script>
 
-<section class="flex flex-col min-h-0 flex-1 overflow-y-auto">
+<section class="flex flex-col min-h-0 flex-1">
+  {#if orderedSections.length > 0}
+    <div class="pp-search">
+      <input
+        type="search"
+        placeholder="filter plugins…"
+        bind:value={query}
+        spellcheck="false"
+        autocomplete="off"
+      />
+      {#if query}
+        <button class="pp-clear-q" onclick={() => query = ""} aria-label="Clear">×</button>
+      {/if}
+    </div>
+  {/if}
+
+  <div class="flex-1 min-h-0 overflow-y-auto">
   {#if orderedSections.length === 0}
     <div class="p-4 font-mono text-[11px] text-fg-faint">
       {#if plugins.items.length === 0}
@@ -63,9 +99,13 @@
         No installed plugins exposed an inline panel. (Plugins can register a panel via <code>wb.settings.addSection</code>.)
       {/if}
     </div>
+  {:else if filteredSections.length === 0}
+    <div class="p-4 font-mono text-[11px] text-fg-faint">
+      no matches for "{query}"
+    </div>
   {:else}
     <ul class="pp-list">
-      {#each orderedSections as section (section.pluginId + ":" + section.label)}
+      {#each filteredSections as section (section.pluginId + ":" + section.label)}
         {@const p = pluginById.get(section.pluginId)}
         <li class="pp-card">
           <header class="pp-head">
@@ -100,9 +140,45 @@
       {/each}
     </ul>
   {/if}
+  </div>
 </section>
 
 <style>
+  .pp-search {
+    position: relative;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-page);
+  }
+  .pp-search input {
+    width: 100%;
+    height: 26px;
+    padding: 0 26px 0 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    outline: none;
+  }
+  .pp-search input::placeholder { color: var(--color-fg-faint); }
+  .pp-search input:focus { border-color: var(--color-accent); }
+  .pp-clear-q {
+    position: absolute;
+    right: 16px; top: 50%;
+    transform: translateY(-50%);
+    width: 18px; height: 18px;
+    background: transparent;
+    border: 0;
+    color: var(--color-fg-muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0;
+  }
+  .pp-clear-q:hover { color: var(--color-fg); }
+
   .pp-list { list-style: none; padding: 0; margin: 0; }
   .pp-card {
     border-bottom: 1px solid var(--color-border);
