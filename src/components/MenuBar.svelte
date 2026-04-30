@@ -17,6 +17,7 @@
    */
 
   import { onMount } from "svelte";
+  import logoUrl from "../logo.svg";
 
   type MenuItem =
     | { kind: "item"; label: string; accel?: string; onSelect: () => void; disabled?: boolean }
@@ -124,6 +125,9 @@
 </script>
 
 <div bind:this={menuRoot} class="mb-bar">
+  <div class="mb-logo" aria-hidden="true">
+    <img src={logoUrl} alt="" />
+  </div>
   {#each menus as m (m.label)}
     <div class="mb-slot">
       <button
@@ -164,6 +168,17 @@
     display: flex; align-items: stretch;
     gap: 0;
     height: 100%;
+  }
+  .mb-logo {
+    display: flex; align-items: center;
+    padding: 0 10px 0 12px;
+    user-select: none;
+    pointer-events: none;
+  }
+  .mb-logo img {
+    display: block;
+    height: 16px; width: auto;
+    opacity: 0.92;
   }
   .mb-slot { position: relative; display: flex; }
   .mb-trigger {
