@@ -14,6 +14,11 @@ export default {
   // workbook size by ~15 MB without losing anything colorwave uses.
   // wb.* + Yjs are pure JS and unaffected by the variant choice.
   wasmVariant: "app",
+  // hyperframes-memory tries arrowEncodeJsonRows / appendArrowIpc
+  // for compact tensor logging but feature-detects first and degrades
+  // gracefully when the arrow surface isn't in this slice. Silence
+  // the variant-coverage warning since the call sites are intentional.
+  wasmVariantCheck: false,
   version: "0.1",
   entry: "src/index.html",
   vite: {
@@ -67,6 +72,35 @@ export default {
       label: "openrouter api key",
       prompt: "sk-or-…",
       required: true,
+      secret: true,
+    },
+    // Integrations — optional. Surfaced via the Integrations modal
+    // (File menu). Stored in browser localStorage, never written
+    // into the .workbook.html (so sharing the file doesn't leak
+    // your keys). Each enables the matching skill so the agent
+    // can use bash to call the service's HTTPS API.
+    FAL_API_KEY: {
+      label: "fal.ai api key",
+      prompt: "fal_…",
+      required: false,
+      secret: true,
+    },
+    ELEVENLABS_API_KEY: {
+      label: "elevenlabs api key",
+      prompt: "sk_…",
+      required: false,
+      secret: true,
+    },
+    RUNWAY_API_KEY: {
+      label: "runway api key",
+      prompt: "key_…",
+      required: false,
+      secret: true,
+    },
+    HUGGINGFACE_TOKEN: {
+      label: "huggingface token (optional — gated models / higher limits)",
+      prompt: "hf_…",
+      required: false,
       secret: true,
     },
   },

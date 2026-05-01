@@ -8,6 +8,7 @@
   import MenuBar from "./components/MenuBar.svelte";
   import PluginManager from "./components/PluginManager.svelte";
   import SkillManager from "./components/SkillManager.svelte";
+  import IntegrationManager from "./components/IntegrationManager.svelte";
   import HistoryModal from "./components/HistoryModal.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
@@ -23,6 +24,7 @@
   let renderOpen = $state(false);
   let pluginsOpen = $state(false);
   let skillsOpen = $state(false);
+  let integrationsOpen = $state(false);
   let historyOpen = $state(false);
   let packaging = $state(false);
   let packageStatus = $state("");
@@ -140,6 +142,7 @@
       onHistory={() => historyOpen = true}
       onPluginManager={() => pluginsOpen = true}
       onSkillManager={() => skillsOpen = true}
+      onIntegrationManager={() => integrationsOpen = true}
     />
 
     <span class="flex-1"></span>
@@ -219,6 +222,7 @@
 <RenderModal bind:open={renderOpen} />
 <PluginManager bind:open={pluginsOpen} />
 <SkillManager bind:open={skillsOpen} />
+<IntegrationManager bind:open={integrationsOpen} />
 <HistoryModal bind:open={historyOpen} />
 
 <!-- Hidden file input for File > Open Project. Accepts hyperframe.html

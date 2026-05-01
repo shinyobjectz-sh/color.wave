@@ -44,6 +44,7 @@
     onExportHyperframe?: () => void;
     onPluginManager?: () => void;
     onSkillManager?: () => void;
+    onIntegrationManager?: () => void;
   };
 
   let {
@@ -57,6 +58,7 @@
     onExportHyperframe,
     onPluginManager,
     onSkillManager,
+    onIntegrationManager,
   }: Props = $props();
 
   // Active dropdown — null when no menu is open.
@@ -101,6 +103,12 @@
       label: "Skills",
       items: [
         { kind: "item", label: "Skill Manager…", onSelect: () => onSkillManager?.(), disabled: !onSkillManager },
+      ],
+    },
+    {
+      label: "Integrations",
+      items: [
+        { kind: "item", label: "Integrations Manager…", onSelect: () => onIntegrationManager?.(), disabled: !onIntegrationManager },
       ],
     },
   ]);
