@@ -1,18 +1,21 @@
-// Auto-save — every Loro commit auto-persists to IndexedDB. No file
-// dialogs, no FSA, no user gesture required. The .workbook.html is
-// just the app bundle; user state lives in browser IDB.
+// Auto-save status bridge. Phase 2 (Yjs) uses a `y-indexeddb`
+// provider for the actual persistence — this module no longer owns
+// the snapshot loop. Its remaining responsibilities:
 //
-// Cmd+S is intercepted to suppress the browser's "Save Page As"
-// (which would snapshot a stale DOM); shows a small toast confirming
-// auto-save is on. File export for sharing is a separate explicit
-// flow (File → Export…), not coupled to Cmd+S.
+//   1. Reflect the y-indexeddb status into a $state-tracked store the
+//      menubar pill subscribes to.
+//   2. Surface the user-facing "saves automatically" toast on Cmd+S
+//      (called from the iframe forwarder + the menubar pill click).
+//   3. Override `window.workbookSave` so the SDK's keydown listener
+//      no longer triggers a Save Page As dialog.
+//
+// Cmd+S is intercepted to suppress the browser's "Save Page As" (which
+// would snapshot a stale DOM); shows a small toast confirming auto-
+// save is on. File export for sharing is a separate explicit flow
+// (File → Export…), not coupled to Cmd+S.
 
-import { bootstrapLoro, getDoc } from "./loroBackend.svelte.js";
-import {
-  hydrateFromIdb,
-  subscribeAutoPersist,
-  flushNow,
-} from "./idbPersistence.svelte.js";
+import { bootstrapYjs, getDoc } from "./yjsBackend.svelte.js";
+import { onIdbStatus, flushNow } from "./idbPersistence.svelte.js";
 
 class AutoSaveStore {
   // "idle" | "pending" | "saving" | "saved" | "error"
@@ -28,42 +31,37 @@ class AutoSaveStore {
     this._booted = true;
 
     try {
-      await bootstrapLoro();
+      await bootstrapYjs();
     } catch (e) {
       console.warn("[autosave] bootstrap failed:", e);
       this.status = "error";
-      this.errorMessage = "Loro bootstrap failed";
+      this.errorMessage = "Yjs bootstrap failed";
       return;
     }
 
     const doc = getDoc();
     if (!doc) {
       this.status = "error";
-      this.errorMessage = "Loro doc unavailable";
+      this.errorMessage = "Y.Doc unavailable";
       return;
     }
     this._doc = doc;
 
-    // Hydrate first — pull any prior session's snapshot from IDB so
-    // the user sees their work before subscriptions kick in.
-    const hydrated = await hydrateFromIdb(doc);
-    this.status = hydrated ? "saved" : "idle";
-    if (hydrated) this.lastSavedAt = Date.now();
-
-    // Subscribe to local commits → debounced snapshot to IDB.
-    subscribeAutoPersist(doc, (status, msg) => {
-      this.status = status;
-      if (status === "saved") this.lastSavedAt = Date.now();
-      if (status === "error") this.errorMessage = msg ?? "";
+    // y-indexeddb's whenSynced + per-update flush drives the status
+    // pill. onIdbStatus fires once with the current state on register.
+    onIdbStatus((next, msg) => {
+      this.status = next;
+      if (next === "saved") this.lastSavedAt = Date.now();
+      if (next === "error") this.errorMessage = msg ?? "";
     });
 
     // Override SDK's window.workbookSave (the FSA write path) with a
-    // no-op-with-toast: the browser's Cmd+S Save Page As is already
-    // intercepted by the SDK keydown handler and routes here. Show a
-    // confirmation that auto-save is on instead of triggering a Save
-    // As dialog. Force-flush IDB while we're at it for paranoia.
+    // toast-only confirmation: the browser's Cmd+S Save Page As is
+    // already intercepted by the SDK keydown handler and routes here.
+    // We keep the user-facing reassurance toast — it's a load-bearing
+    // signal that "your work is saved" without showing a stale dialog.
     window.workbookSave = async () => {
-      console.log("[autosave] cmd-s intercepted → flushing now");
+      console.log("[autosave] cmd-s intercepted → flushing y-indexeddb");
       if (this._doc) await flushNow(this._doc, (s, m) => {
         this.status = s;
         if (s === "saved") this.lastSavedAt = Date.now();

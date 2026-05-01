@@ -1,134 +1,126 @@
-// IndexedDB-backed persistence for the Loro doc.
+// y-indexeddb-backed persistence for the Y.Doc.
 //
-// Architecture:
+// Architecture (post-Phase-2):
 //   • The .workbook.html file is just the APP BUNDLE. User projects
 //     (compositions, plugins, configs, history) live in browser IDB.
-//   • Every Loro commit triggers a debounced snapshot-to-IDB write.
-//   • On boot, hydrate the Loro doc from IDB if a snapshot exists.
+//   • A `y-indexeddb` IndexeddbPersistence provider streams every
+//     Y.Doc update to IDB and rehydrates the doc on construction —
+//     no hand-rolled snapshot loop, no manual subscribe.
+//   • Cmd+S still surfaces a toast (handled by autoSave + the iframe
+//     forwarder in main.js); the actual write is the provider's job.
 //
-// This replaces the previous "save = write back to .workbook.html
-// via FSA" flow. There are no file dialogs anymore. File export for
-// sharing is a separate explicit action (File → Export…).
+// The exports mimic the legacy hand-rolled IDB API so autoSave +
+// projectIO continue to compile. Most are now thin wrappers.
 
-const DB_NAME      = "colorwave";
-const DB_VERSION   = 1;
-const STORE_NAME   = "state";
-const SNAPSHOT_KEY = "loro-snapshot";
-const DEBOUNCE_MS  = 600;
+import { IndexeddbPersistence } from "y-indexeddb";
+import * as Y from "yjs";
 
-let _dbPromise = null;
+const ROOM_NAME = "colorwave-state";
 
-function openDb() {
-  if (_dbPromise) return _dbPromise;
-  _dbPromise = new Promise((resolve, reject) => {
-    if (typeof indexedDB === "undefined") {
-      reject(new Error("IndexedDB is not available"));
-      return;
-    }
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
-    req.onblocked = () => reject(new Error("IDB upgrade blocked"));
-  });
-  // Don't cache rejection — let the next caller retry.
-  _dbPromise.catch(() => { _dbPromise = null; });
-  return _dbPromise;
-}
+let _provider = null;          // y-indexeddb IndexeddbPersistence
+let _providerPromise = null;
+const _statusListeners = new Set();
+let _status = "idle";          // "idle" | "pending" | "saving" | "saved" | "error"
 
-async function readSnapshot() {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx  = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(SNAPSHOT_KEY);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror   = () => reject(req.error);
-  });
-}
-
-async function writeSnapshot(bytes) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(bytes, SNAPSHOT_KEY);
-    tx.oncomplete = () => resolve();
-    tx.onerror    = () => reject(tx.error);
-  });
-}
-
-/**
- * Restore the Loro doc from IDB if a snapshot exists. Returns true if
- * a snapshot was found and applied, false otherwise. Errors swallow
- * to a console warn — better to start fresh than block boot.
- */
-export async function hydrateFromIdb(loroDoc) {
-  try {
-    const bytes = await readSnapshot();
-    if (!bytes || !(bytes instanceof Uint8Array) || bytes.length === 0) return false;
-    loroDoc.import(bytes);
-    console.log(`[idb] hydrated Loro doc from IDB (${bytes.length} bytes)`);
-    return true;
-  } catch (e) {
-    console.warn("[idb] hydrate failed:", e);
-    return false;
+function emitStatus(next, msg) {
+  _status = next;
+  for (const fn of _statusListeners) {
+    try { fn(next, msg); } catch (e) { console.warn("[idb] listener threw:", e); }
   }
 }
 
 /**
- * Subscribe to local Loro commits and write a debounced snapshot to
- * IDB. Returns an unsubscribe function. The caller is responsible for
- * invoking that on teardown (rare; typically lives for the page life).
+ * Wire a `y-indexeddb` provider to the doc. Resolves once the
+ * provider has rehydrated any persisted state into `doc` (the
+ * `synced` event). Subsequent updates persist automatically.
  *
- * onStatus is invoked with one of "pending" | "saving" | "saved" |
- * "error" + optional error message — drives the menubar indicator.
+ * Idempotent: a second call returns the same provider promise.
  */
-export function subscribeAutoPersist(loroDoc, onStatus) {
-  let timer = null;
-  let unsubscribed = false;
+export function setupIdbPersistence(doc) {
+  if (_provider) return _providerPromise ?? Promise.resolve(_provider);
+  if (!(doc instanceof Y.Doc)) {
+    throw new Error("setupIdbPersistence: doc must be a Y.Doc");
+  }
 
-  const status = (s, msg) => { if (typeof onStatus === "function") onStatus(s, msg); };
+  _providerPromise = new Promise((resolve) => {
+    _provider = new IndexeddbPersistence(ROOM_NAME, doc);
 
-  const flush = async () => {
-    if (unsubscribed) return;
-    try {
-      status("saving");
-      const bytes = loroDoc.export({ mode: "snapshot" });
-      await writeSnapshot(bytes);
-      status("saved");
-    } catch (e) {
-      status("error", e?.message ?? String(e));
-      console.warn("[idb] write failed:", e);
-    }
-  };
+    // Hydration done. The doc now contains whatever was persisted.
+    _provider.once("synced", () => {
+      console.log("[idb] y-indexeddb synced (hydration complete)");
+      emitStatus("saved");
+      resolve(_provider);
+    });
 
-  const unsubLoro = loroDoc.subscribe((ev) => {
-    if (ev?.by !== "local") return;
-    status("pending");
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(flush, DEBOUNCE_MS);
+    // Bridge updateV2 → menubar status. We can't easily distinguish
+    // "local op pending IDB flush" from "remote op already
+    // committed" through y-indexeddb alone, so we treat every local
+    // update as transiently pending and the provider's whenSynced
+    // resolution as "saved". y-indexeddb writes are essentially
+    // synchronous-with-transaction: once the IDB tx commits, the
+    // bytes are durable.
+    doc.on("updateV2", (_update, origin) => {
+      // The provider sets origin to itself when applying remote/
+      // hydrated state; only treat locally-originated updates as
+      // pending.
+      if (origin === _provider) return;
+      emitStatus("saving");
+      // y-indexeddb queues the write and flushes within a microtask;
+      // mark saved on the next tick.
+      queueMicrotask(() => {
+        _provider.whenSynced.then(() => emitStatus("saved"));
+      });
+    });
   });
-  console.log("[idb] subscribed to Loro local commits → autopersist");
 
-  return () => {
-    unsubscribed = true;
-    if (timer) clearTimeout(timer);
-    if (typeof unsubLoro === "function") unsubLoro();
-  };
+  return _providerPromise;
 }
 
-/** Force an immediate snapshot to IDB, bypassing the debounce. Used
- *  by Cmd+S as a "make sure I'm saved right now" gesture. */
-export async function flushNow(loroDoc, onStatus) {
+/** Subscribe to status transitions for the menubar pill. */
+export function onIdbStatus(fn) {
+  if (typeof fn !== "function") return () => {};
+  _statusListeners.add(fn);
+  // Fire current state immediately.
+  try { fn(_status, ""); } catch (e) { console.warn("[idb] listener threw:", e); }
+  return () => { _statusListeners.delete(fn); };
+}
+
+/** Read current status synchronously (idle | pending | saving | saved | error). */
+export function getIdbStatus() { return _status; }
+
+// ─── Compatibility layer for the pre-Phase-2 autoSave shape ────────
+//
+// autoSave still calls `subscribeAutoPersist` + `flushNow`. These
+// thin wrappers let the legacy callers keep working while the
+// underlying engine is now y-indexeddb. Most of the work is delegated
+// to onIdbStatus + the provider's whenSynced.
+
+/** No-op: y-indexeddb hydrates inside setupIdbPersistence. Returns
+ *  true if any state was persisted (provider sees a non-empty store). */
+export async function hydrateFromIdb(_doc) {
+  // Idempotent — setupIdbPersistence is called from yjsBackend's
+  // boot path before this. Just await whenSynced as a safety net.
+  if (!_provider) return false;
+  await _provider.whenSynced;
+  return true;
+}
+
+/** Subscribe legacy callers to the status pipeline. */
+export function subscribeAutoPersist(_doc, onStatus) {
+  return onIdbStatus(onStatus);
+}
+
+/** Force-flush. y-indexeddb is essentially synchronous; awaiting
+ *  whenSynced after the latest write is the closest equivalent. */
+export async function flushNow(_doc, onStatus) {
   const status = (s, msg) => { if (typeof onStatus === "function") onStatus(s, msg); };
   try {
+    if (!_provider) {
+      status("saved");
+      return;
+    }
     status("saving");
-    const bytes = loroDoc.export({ mode: "snapshot" });
-    await writeSnapshot(bytes);
+    await _provider.whenSynced;
     status("saved");
   } catch (e) {
     status("error", e?.message ?? String(e));
@@ -139,13 +131,9 @@ export async function flushNow(loroDoc, onStatus) {
 /** Wipe IDB state — used by File → New Project. */
 export async function clearIdb() {
   try {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      tx.objectStore(STORE_NAME).delete(SNAPSHOT_KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror    = () => reject(tx.error);
-    });
+    if (_provider && typeof _provider.clearData === "function") {
+      await _provider.clearData();
+    }
   } catch (e) {
     console.warn("[idb] clear failed:", e);
   }

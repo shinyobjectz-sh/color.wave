@@ -1,16 +1,17 @@
 // Entry — mount the workbook runtime first so the <wb-doc> in
-// index.html gets parsed + registered with a LoroDocHandle, then
-// mount the Svelte app once persistent state is ready.
+// index.html gets parsed + registered with a CRDT handle, then mount
+// the Svelte app once persistent state is ready.
 //
-// Order matters: the studio's loroBackend reads its LoroDoc from
+// Order matters: the studio's yjsBackend reads its Y.Doc from
 // window.__wbRuntime.getDocHandle("hyperframes-state"), which only
 // exists after mountHtmlWorkbook() resolves. Awaiting both before
 // Svelte mount eliminates the brief default-state flash that the
 // prior IDB-bootstrap flow had.
 //
-// No IndexedDB. State lives in <wb-doc> inside the .workbook.html
-// file; mutations during the session round-trip back into the file
-// on Cmd+S via the SDK's save handler.
+// Persistence: a `y-indexeddb` provider attached inside yjsBackend
+// streams every Y.Doc update to IDB and rehydrates on load. State
+// also lives in the <wb-doc> element on disk for portable export
+// (Cmd+S round-trip).
 //
 // Wrapped in an async IIFE rather than top-level await so the
 // module evaluates without TLA semantics — vite-plugin-singlefile
@@ -18,33 +19,33 @@
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { loadRuntime } from "virtual:workbook-runtime";
-import { bootstrapLoro } from "./lib/loroBackend.svelte.js";
+import { bootstrapYjs } from "./lib/yjsBackend.svelte.js";
 import { autoSave } from "./lib/autoSave.svelte.js";
-// loroBackend.svelte.js statically imports LoroDoc from loro-crdt
-// AND assigns the full namespace to window.__wb_loro at module
-// load. Importing it here is what gets the loro module into the
-// user's bundle in the right flatten order — purely a sequence
-// guarantee, no value referenced. (Going through main.js for the
-// loro import produced TDZ violations against the singlefile
-// flatten output.)
+// Static yjs import keeps the module init order stable through
+// vite-plugin-singlefile's flatten step. Same pattern that the
+// pre-Phase-2 build used for `loro-crdt`. We don't reference the
+// imported namespace; it's purely a sequence guarantee. The runtime's
+// <wb-doc> resolver creates the Y.Doc itself via yjsSidecar.
+import "yjs";
 
 (async () => {
   try {
     // Load + mount the workbook runtime. Registers <wb-doc> with the
     // runtime client and exposes window.__wbRuntime for tooling
-    // (save handler, loroBackend).
+    // (save handler, yjsBackend).
     const { wasm, bundle } = await loadRuntime();
     await bundle.mountHtmlWorkbook({
       loadWasm: () => Promise.resolve(wasm),
     });
 
-    // Hand the runtime-registered LoroDocHandle to loroBackend so
-    // the studio's existing API (getDoc / readComposition /
-    // writeComposition) keeps working unchanged.
-    await bootstrapLoro();
+    // Hand the runtime-registered Y.Doc handle to yjsBackend so the
+    // studio's existing API (getDoc / snapshotCompositionBytes) keeps
+    // working unchanged. Side effects: legacy Loro IDB port + y-
+    // indexeddb provider attach.
+    await bootstrapYjs();
 
-    // Auto-save: subscribe to Loro commits so every state change
-    // silently writes through the file handle (once granted).
+    // Auto-save: subscribe to y-indexeddb provider events so the
+    // menubar status pill updates on every persisted update.
     await autoSave.init();
   } catch (e) {
     console.error("color.wave: runtime bootstrap failed:", e);

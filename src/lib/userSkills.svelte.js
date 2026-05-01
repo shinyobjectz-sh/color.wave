@@ -1,16 +1,17 @@
 // User-uploaded skill registry — drag-and-drop markdown files the
 // agent can load via `load_skill("user/<name>")`.
 //
-// Storage: a Loro list keyed "user-skills" inside the workbook's
-// CRDT doc (see loroBackend.svelte.js). Round-trips through the
-// .workbook.html file on Cmd+S. No browser cache.
+// Storage: a Yjs Array keyed "user-skills" inside the workbook's
+// CRDT doc (see yjsBackend.svelte.js). Round-trips through the
+// .workbook.html file on Cmd+S. Browser-side persistence via the
+// y-indexeddb provider attached at boot.
 //
 // The agent's load_skill tool checks this registry alongside the
 // vendored skills bundle (see skills.js). User skills are always
 // prefixed `user/` to distinguish them from vendored ones.
 
 import { wb } from "@work.books/runtime";
-import { bootstrapLoro, getDoc } from "./loroBackend.svelte.js";
+import { bootstrapYjs, getDoc } from "./yjsBackend.svelte.js";
 
 // User skills are keyed by `name` (the load_skill agent tool prefixes
 // `user/`). wb.collection requires `.id` — we adapt by storing
@@ -20,20 +21,20 @@ import { bootstrapLoro, getDoc } from "./loroBackend.svelte.js";
 // Legacy wire format: pre-SDK workbooks stored `{name, content}`
 // entries with no `id`. The SDK's reader skips ill-shaped entries,
 // so legacy data would disappear. Our hydration step (see migrateLegacy
-// below) reads the underlying Loro list once and rewrites any legacy
+// below) reads the underlying Y.Array once and rewrites any legacy
 // records into the new id-keyed shape, preserving the user's skills
-// across the upgrade.
+// across the upgrade. Same intent as before; container API renamed.
 const USER_SKILLS_LIST = "user-skills";
 const userSkillsCollection = wb.collection(USER_SKILLS_LIST);
 
-/** One-time migration: walk the raw Loro list and rewrite any
- *  legacy `{name, content}` entries into `{id, name, content}` so
- *  the SDK reader picks them up. Idempotent. */
+/** One-time migration: walk the raw Y.Array and rewrite any legacy
+ *  `{name, content}` entries into `{id, name, content}` so the SDK
+ *  reader picks them up. Idempotent. */
 async function migrateLegacy() {
-  await bootstrapLoro();
+  await bootstrapYjs();
   const doc = getDoc();
   if (!doc) return;
-  const list = doc.getList(USER_SKILLS_LIST);
+  const list = doc.getArray(USER_SKILLS_LIST);
   let changed = false;
   const next = [];
   for (const v of list.toArray()) {
@@ -52,9 +53,10 @@ async function migrateLegacy() {
     next.push(parsed);
   }
   if (!changed) return;
-  if (list.length > 0) list.delete(0, list.length);
-  for (const r of next) list.push(JSON.stringify(r));
-  doc.commit();
+  doc.transact(() => {
+    if (list.length > 0) list.delete(0, list.length);
+    if (next.length > 0) list.push(next.map((r) => JSON.stringify(r)));
+  });
 }
 
 const MAX_SKILL_BYTES = 1 * 1024 * 1024; // 1 MB markdown file cap

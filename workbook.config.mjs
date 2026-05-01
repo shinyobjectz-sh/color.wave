@@ -12,7 +12,10 @@ export default {
   version: "0.1",
   entry: "src/index.html",
   vite: {
-    // vite-plugin-wasm handles loro-crdt's ESM-integrated WASM init.
+    // vite-plugin-wasm handles ESM-integrated WASM init for any
+    // wasm-bearing dep the runtime crate pulls in. loro-crdt is no
+    // longer bundled (Phase 2 swap to Yjs, pure JS); the plugin stays
+    // since the workbook-runtime crate ships its own WASM.
     //
     // We deliberately do NOT pair with vite-plugin-top-level-await:
     // vite-plugin-singlefile flattens every module into one inline
