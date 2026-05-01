@@ -21,9 +21,10 @@
 //                        Cleanest round-trip; small.
 //   .workbook.html     — the full studio export (Phase A.2 Package). We
 //                        extract the <wb-doc id="hyperframes-state"> base64
-//                        snapshot and import into the current Loro doc.
+//                        snapshot and apply it onto the current Y.Doc.
 
-import { getDoc } from "./loroBackend.svelte.js";
+import * as Y from "yjs";
+import { getDoc } from "./yjsBackend.svelte.js";
 import { wb } from "@work.books/runtime";
 import { INITIAL_COMPOSITION, IFRAME_RUNTIME_AUTOPLAY } from "./initial.js";
 
@@ -73,7 +74,10 @@ export async function openProject(file) {
         if (!doc) {
           return { ok: false, error: "runtime not booted yet — reload and try again" };
         }
-        doc.import(bytes);
+        // Y.applyUpdate merges the imported state into the live doc.
+        // Concurrent local state survives; the imported state lands as
+        // an additive merge under Yjs's CRDT semantics.
+        Y.applyUpdate(doc, bytes);
         return { ok: true };
       } catch (e) {
         return { ok: false, error: `decoding wb-doc failed: ${e?.message ?? e}` };
@@ -165,6 +169,8 @@ export async function exportHyperframeHtml({ title, filename } = {}) {
   if (!doc) {
     return { ok: false, error: "runtime not booted yet" };
   }
+  // Y.Text exposes toString() identical to LoroText's, so the existing
+  // composition-shaped read keeps working unchanged.
   const composition = doc.getText("composition").toString();
   if (!composition) {
     return { ok: false, error: "composition is empty — nothing to export" };
