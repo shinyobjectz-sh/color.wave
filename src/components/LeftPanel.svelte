@@ -3,7 +3,6 @@
   import AssetsPanel from "./AssetsPanel.svelte";
   import PluginsPanel from "./PluginsPanel.svelte";
   import { plugins } from "../lib/plugins.svelte.js";
-  import HistoryPanel from "./HistoryPanel.svelte";
   import { layout } from "../lib/layout.svelte.js";
   import { assets } from "../lib/assets.svelte.js";
   import { agent } from "../lib/agent.svelte.js";
@@ -74,22 +73,6 @@
         <span class="lp-count">{plugins.items.length}</span>
       {/if}
     </button>
-    <button
-      onclick={() => layout.setLeftTab("history")}
-      class="lp-tab"
-      class:active={layout.leftTab === "history"}
-      aria-pressed={layout.leftTab === "history"}
-      title="Edit log — Prolly Tree commit chain"
-    >
-      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="7" cy="3" r="1.2"/>
-        <circle cx="7" cy="7" r="1.2"/>
-        <circle cx="7" cy="11" r="1.2"/>
-        <path d="M7 4.2 L7 5.8"/>
-        <path d="M7 8.2 L7 9.8"/>
-      </svg>
-      <span>history</span>
-    </button>
     {#each panelTabs as tab (tab.pluginId + ":" + tab.id)}
       <button
         onclick={() => layout.setLeftTab(`plugin:${tab.id}`)}
@@ -113,9 +96,6 @@
   </div>
   <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "plugins"}>
     <PluginsPanel />
-  </div>
-  <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "history"}>
-    <HistoryPanel />
   </div>
   <!-- Plugin-registered tabs render lazily — only the active one
        mounts. Plugins decide their own state-survival strategy. -->

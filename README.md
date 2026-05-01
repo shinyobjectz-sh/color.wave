@@ -13,7 +13,7 @@ git clone --recurse-submodules https://github.com/shinyobjectz-sh/color.wave.git
 cd color.wave
 bun install
 bun run build
-# → dist/colorwave.workbook.html (open in any browser)
+# → dist/color.wave.html (open in any browser)
 ```
 
 ## What's in the box

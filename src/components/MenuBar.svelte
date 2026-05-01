@@ -29,6 +29,8 @@
     onPackage: () => void;
     onRender: () => void;
     onSettings: () => void;
+    onSave: () => void;
+    onHistory: () => void;
     /** Future: wire these as B/C/D/E phases land. */
     onNewProject?: () => void;
     onOpenProject?: () => void;
@@ -41,6 +43,8 @@
     onPackage,
     onRender,
     onSettings,
+    onSave,
+    onHistory,
     onNewProject,
     onOpenProject,
     onExportHyperframe,
@@ -61,6 +65,8 @@
         { kind: "item", label: "New Project…", onSelect: () => onNewProject?.(), disabled: !onNewProject },
         { kind: "item", label: "Open Project…", accel: "⌘O", onSelect: () => onOpenProject?.(), disabled: !onOpenProject },
         { kind: "separator" },
+        { kind: "item", label: "Save", accel: "⌘S", onSelect: onSave },
+        { kind: "separator" },
         { kind: "item", label: "Export Hyperframe HTML…", onSelect: () => onExportHyperframe?.(), disabled: !onExportHyperframe },
         { kind: "item", label: "Package Project…", onSelect: onPackage },
         { kind: "separator" },
@@ -74,6 +80,8 @@
       items: [
         { kind: "item", label: "Undo", accel: "⌘Z", onSelect: () => {}, disabled: true },
         { kind: "item", label: "Redo", accel: "⇧⌘Z", onSelect: () => {}, disabled: true },
+        { kind: "separator" },
+        { kind: "item", label: "History…", accel: "⌘Y", onSelect: onHistory },
       ],
     },
     {

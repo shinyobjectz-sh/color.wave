@@ -81,6 +81,18 @@ export function bootstrapLoro() {
         const handle = rt.getDocHandle(DOC_ID);
         if (handle && typeof handle.inner === "function") {
           _doc = handle.inner();
+
+          // Hydrate from IndexedDB before resolving so every downstream
+          // store (composition / assets / plugins / history) sees the
+          // restored state on first read. Lazy-import to dodge a
+          // module-init cycle (idbPersistence is a leaf consumer).
+          try {
+            const { hydrateFromIdb } = await import("./idbPersistence.svelte.js");
+            await hydrateFromIdb(_doc);
+          } catch (e) {
+            console.warn("[loroBackend] IDB hydrate skipped:", e);
+          }
+
           return _doc;
         }
       }

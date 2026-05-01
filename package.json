@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "dev": "workbook dev",
-    "build": "workbook build"
+    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html"
   },
   "dependencies": {
     "svelte": "^5.0.0",
