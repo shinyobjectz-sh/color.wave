@@ -63,17 +63,10 @@ export function bootstrapYjs() {
         if (inner instanceof Y.Doc) {
           _doc = inner;
 
-          // 1. Best-effort one-time legacy port. Skips fast if no
-          //    legacy IDB store exists.
-          try {
-            const { runLegacyLoroPortIfPresent } = await import("./legacyLoroPort.js");
-            await runLegacyLoroPortIfPresent(_doc);
-          } catch (e) {
-            console.warn("[yjsBackend] legacy port skipped:", e?.message ?? e);
-          }
-
-          // 2. Attach y-indexeddb. Persisted state hydrates into _doc;
-          //    every subsequent updateV2 streams to IDB automatically.
+          // Attach y-indexeddb. Persisted state hydrates into _doc;
+          // every subsequent updateV2 streams to IDB automatically.
+          // (Pre-Phase-2 IDB state from the Loro era is left orphaned
+          // — pre-1.0 product, breaking change is acceptable.)
           try {
             const { setupIdbPersistence } = await import("./idbPersistence.svelte.js");
             await setupIdbPersistence(_doc);
