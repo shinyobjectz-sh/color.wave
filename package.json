@@ -1,6 +1,6 @@
 {
   "name": "colorwave",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "color.wave — a portable HTML AI video editor. One file, runs anywhere.",
   "private": true,
   "type": "module",

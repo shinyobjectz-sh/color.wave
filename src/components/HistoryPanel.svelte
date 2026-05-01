@@ -13,7 +13,6 @@
     setCursor,
     getCursor,
   } from "../lib/historyBackend.svelte.js";
-  import { layout } from "../lib/layout.svelte.js";
   import { composition } from "../lib/composition.svelte.js";
   import { onMount, onDestroy } from "svelte";
 
@@ -39,10 +38,9 @@
   let unsubHistory;
   let unsubCursor;
   onMount(() => {
+    refresh();
     nowTimer = setInterval(() => { now = Date.now(); }, 1_000);
-    unsubHistory = onHistoryChange(() => {
-      if (layout.leftTab === "history") refresh();
-    });
+    unsubHistory = onHistoryChange(() => { refresh(); });
     cursorHash = getCursor();
     unsubCursor = onCursorChange(() => {
       cursorHash = getCursor();
@@ -71,11 +69,6 @@
         loading = false;
       });
   }
-
-  // Refetch on tab focus + after revert.
-  $effect(() => {
-    if (layout.leftTab === "history") refresh();
-  });
 
   // ─── Time formatting ────────────────────────────────────────────
 

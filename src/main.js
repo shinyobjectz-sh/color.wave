@@ -23,10 +23,16 @@ import { bootstrapYjs } from "./lib/yjsBackend.svelte.js";
 import { autoSave } from "./lib/autoSave.svelte.js";
 // Static yjs import keeps the module init order stable through
 // vite-plugin-singlefile's flatten step. Same pattern that the
-// pre-Phase-2 build used for `loro-crdt`. We don't reference the
-// imported namespace; it's purely a sequence guarantee. The runtime's
-// <wb-doc> resolver creates the Y.Doc itself via yjsSidecar.
-import "yjs";
+// pre-Phase-2 build used for `loro-crdt`.
+//
+// Doubles as the canonical Y instance for the runtime bundle: the
+// runtime's yjsHost.ts reads `globalThis.__wb_yjs` instead of
+// importing "yjs" directly, so we have ONE Yjs across the host app
+// and the runtime. Without this, both sides would bundle their own
+// copy and `instanceof Y.Doc` would fail across the boundary
+// (https://github.com/yjs/yjs/issues/438).
+import * as Y from "yjs";
+globalThis.__wb_yjs = Y;
 
 (async () => {
   try {
