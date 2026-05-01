@@ -20,14 +20,14 @@
 // Asset add/remove also records a Prolly Tree commit for audit.
 
 import { recordEdit, recordDelete } from "./historyBackend.svelte.js";
-import {
-  bootstrapLoro,
-  getDoc,
-  readAssets,
-  pushAsset,
-  removeAssetById,
-  replaceAssets,
-} from "./loroBackend.svelte.js";
+import { wb } from "@work.books/runtime";
+
+// Asset records hold {id, name, kind, dataUrl, ...}. wb.collection
+// keys by `.id`, so upsert(record) replaces in place and remove(id)
+// is O(n) but linear-and-cheap. JSON-encoded under the hood so the
+// wire format matches the pre-SDK Loro list of JSON strings — no
+// migration needed for prior workbooks.
+const assetsCollection = wb.collection("assets");
 
 const MAX_BYTES = 50 * 1024 * 1024; // 50 MB hard cap per asset
 
@@ -86,25 +86,18 @@ class AssetsStore {
   hydrated = $state(false);
 
   constructor() {
-    // Sync hydrate when main.js has already awaited bootstrap
-    // (the standard entry path). Falls back to the async path if
-    // a non-standard entry skipped the main.js await.
-    if (getDoc()) {
-      const stored = readAssets();
-      if (stored.length > 0) this.items = stored;
+    // Subscribe to the SDK collection so the reactive `items` field
+    // tracks the underlying LoroList. Fires once on registration
+    // with the current snapshot (post-hydration).
+    assetsCollection.subscribe((list) => {
+      this.items = list.slice();
       this.hydrated = true;
-    } else {
-      bootstrapLoro()
-        .then(() => {
-          const stored = readAssets();
-          if (stored.length > 0) this.items = stored;
-          this.hydrated = true;
-        })
-        .catch((e) => {
-          console.warn("assets: hydrate failed:", e?.message ?? e);
-          this.hydrated = true;
-        });
-    }
+    });
+    assetsCollection.ready().then(() => { this.hydrated = true; })
+      .catch((e) => {
+        console.warn("assets: hydrate failed:", e?.message ?? e);
+        this.hydrated = true;
+      });
   }
 
   async addFromFile(file) {
@@ -126,8 +119,12 @@ class AssetsStore {
       duration,
       addedAt: Date.now(),
     };
+    assetsCollection.upsert(item);
+    // Local mirror so callers reading `this.items` immediately after
+    // addFromFile see the new entry without waiting for the
+    // subscription to fire. Subscribe is fire-and-forget; the value
+    // ends up identical either way.
     this.items = [...this.items, item];
-    pushAsset(item);
     // Audit-chain entry: omit the dataUrl since the bytes already
     // live in the Loro list; the audit just records identity.
     recordEdit(
@@ -210,8 +207,8 @@ class AssetsStore {
       addedAt: Date.now(),
       linked: true,
     };
+    assetsCollection.upsert(item);
     this.items = [...this.items, item];
-    pushAsset(item);
     recordEdit(
       `asset:${item.id}`,
       { id: item.id, name: item.name, kind: item.kind, linked: true },
@@ -222,7 +219,7 @@ class AssetsStore {
 
   remove(id) {
     this.items = this.items.filter((a) => a.id !== id);
-    removeAssetById(id);
+    assetsCollection.remove(id);
     recordDelete(`asset:${id}`, `remove asset ${id}`);
   }
 
@@ -230,8 +227,9 @@ class AssetsStore {
    *  reactive update. Used by importProjectFile to apply a project
    *  state without firing per-item subscribers. */
   replaceAll(items) {
-    this.items = (items ?? []).slice();
-    replaceAssets(this.items);
+    const next = (items ?? []).slice();
+    this.items = next;
+    assetsCollection.replaceAll(next);
   }
 
   get(id) { return this.items.find((a) => a.id === id) ?? null; }

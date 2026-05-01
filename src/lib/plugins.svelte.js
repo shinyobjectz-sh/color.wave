@@ -13,14 +13,17 @@
 // list "plugins". Share the .workbook.html file → recipient gets
 // your plugins (code + config + on/off toggles).
 
-import {
-  bootstrapLoro,
-  getDoc,
-} from "./loroBackend.svelte.js";
+import { wb } from "@work.books/runtime";
 import { createPluginApi, teardownPluginApi } from "./pluginApi.svelte.js";
 
 const PLUGINS_LIST = "plugins";
 const MAX_PLUGIN_BYTES = 5 * 1024 * 1024; // 5 MB single-plugin source cap
+
+// Plugin records already carry `.id` from manifest.id, so the SDK's
+// dedup-by-id semantics map 1:1 onto the legacy filter-then-push
+// pattern. Wire format is identical (JSON-encoded records inside a
+// LoroList) so prior workbooks load without migration.
+const pluginsCollection = wb.collection(PLUGINS_LIST);
 
 // Default registry — Plugin Manager auto-subscribes to this on open.
 // Catalog lives in the same repo as the editor (registry/registry.json
@@ -64,48 +67,27 @@ class PluginsStore {
   registry = $state({ status: "idle", entries: [], url: DEFAULT_REGISTRY_URL, error: "" });
 
   constructor() {
-    if (getDoc()) this._hydrateFromDoc();
-    else {
-      bootstrapLoro()
-        .then(() => this._hydrateFromDoc())
-        .catch(() => { this.hydrated = true; });
-    }
-  }
-
-  _hydrateFromDoc() {
-    const doc = getDoc();
-    if (!doc) return;
-    const list = doc.getList(PLUGINS_LIST);
-    const raw = [];
-    for (const v of list.toArray()) {
-      if (typeof v !== "string") continue;
-      try { raw.push(JSON.parse(v)); } catch { /* skip */ }
-    }
-    // Dedupe on hydration — last-write-wins per id. Prior bugs (or
-    // a corrupted Loro list) could have left duplicate entries with
-    // the same id; collapse them on read so the rest of the app
-    // never has to handle duplicates.
-    const seen = new Map();
-    for (const p of raw) {
-      if (!p?.id) continue;
-      seen.set(p.id, p);
-    }
-    const out = [...seen.values()];
-    const hadDupes = out.length !== raw.length;
-    this.items = out;
-    this.hydrated = true;
-    if (hadDupes) {
-      console.warn(`[plugins] hydrate dropped ${raw.length - out.length} duplicate entries; persisting clean state`);
-      this._persist();
-    }
-
-    // Auto-activate every enabled plugin on mount. Errors are
-    // recorded on the record so the UI can surface them.
-    for (const p of out) {
-      if (p.enabled) this._activate(p).catch((e) => {
-        console.warn(`plugin '${p.id}' failed to activate:`, e?.message ?? e);
-      });
-    }
+    // Hydrate via the SDK collection. wb.collection's reader already
+    // dedupes by id on parse (matches the legacy _hydrateFromDoc
+    // collapse), so the explicit dedup loop disappears. Auto-activate
+    // every enabled plugin on the first non-empty hydrate; subsequent
+    // subscription fires (after upsert/remove) skip the activation
+    // loop because the plugin instances are already wired.
+    let activated = false;
+    pluginsCollection.subscribe((list) => {
+      this.items = list.slice();
+      this.hydrated = true;
+      if (!activated && list.length > 0) {
+        activated = true;
+        for (const p of list) {
+          if (p.enabled) this._activate(p).catch((e) => {
+            console.warn(`plugin '${p.id}' failed to activate:`, e?.message ?? e);
+          });
+        }
+      }
+    });
+    pluginsCollection.ready().then(() => { this.hydrated = true; })
+      .catch(() => { this.hydrated = true; });
   }
 
   // ── installation ────────────────────────────────────────────────
@@ -176,12 +158,11 @@ class PluginsStore {
         config,
       };
 
-      // Filter-then-push ensures exactly one entry per id, even if
-      // a prior bug or doc-level corruption left duplicates.
-      const next = this.items.filter((p) => p.id !== manifest.id);
-      next.push(record);
-      this.items = next;
-      await this._persist();
+      // wb.collection.upsert dedupes by id, so a re-install of the
+      // same plugin id replaces the prior record cleanly without the
+      // legacy filter-then-push dance.
+      pluginsCollection.upsert(record);
+      this.items = pluginsCollection.list.slice();
 
       if (enabled) await this._activate(record);
       return record;
@@ -246,11 +227,8 @@ class PluginsStore {
         config,
       };
 
-      // Same dedupe pattern as install() — one entry per id.
-      const next = this.items.filter((p) => p.id !== manifest.id);
-      next.push(record);
-      this.items = next;
-      await this._persist();
+      pluginsCollection.upsert(record);
+      this.items = pluginsCollection.list.slice();
 
       if (enabled) await this._activate(record);
       return record;
@@ -296,8 +274,8 @@ class PluginsStore {
   /** Remove a plugin. Deactivates first; persists the empty slot. */
   async remove(id) {
     await this._deactivate(id);
-    this.items = this.items.filter((p) => p.id !== id);
-    await this._persist();
+    pluginsCollection.remove(id);
+    this.items = pluginsCollection.list.slice();
   }
 
   /** Reorder a plugin in items[]. delta = +1 moves down, -1 up.
@@ -311,7 +289,9 @@ class PluginsStore {
     const next = this.items.slice();
     [next[i], next[j]] = [next[j], next[i]];
     this.items = next;
-    await this._persist();
+    // wb.collection has no native reorder; replaceAll is the right
+    // primitive for whole-list rewrites.
+    pluginsCollection.replaceAll(next);
   }
 
   /** Toggle enabled state. Activates / deactivates accordingly. */
@@ -319,11 +299,10 @@ class PluginsStore {
     const idx = this.items.findIndex((p) => p.id === id);
     if (idx < 0) return;
     if (this.items[idx].enabled === enabled) return;
-    const next = this.items.slice();
-    next[idx] = { ...next[idx], enabled };
-    this.items = next;
-    await this._persist();
-    if (enabled) await this._activate(next[idx]).catch((e) => {
+    const updated = { ...this.items[idx], enabled };
+    pluginsCollection.upsert(updated);
+    this.items = pluginsCollection.list.slice();
+    if (enabled) await this._activate(updated).catch((e) => {
       console.warn(`plugin '${id}' failed to activate:`, e?.message ?? e);
     });
     else await this._deactivate(id);
@@ -440,22 +419,9 @@ class PluginsStore {
   async setConfig(id, config) {
     const idx = this.items.findIndex((p) => p.id === id);
     if (idx < 0) return;
-    const next = this.items.slice();
-    next[idx] = { ...next[idx], config };
-    this.items = next;
-    await this._persist();
-  }
-
-  // ── persistence ─────────────────────────────────────────────────
-
-  async _persist() {
-    await bootstrapLoro();
-    const doc = getDoc();
-    if (!doc) return;
-    const list = doc.getList(PLUGINS_LIST);
-    if (list.length > 0) list.delete(0, list.length);
-    for (const p of this.items) list.push(JSON.stringify(p));
-    doc.commit();
+    const updated = { ...this.items[idx], config };
+    pluginsCollection.upsert(updated);
+    this.items = pluginsCollection.list.slice();
   }
 }
 
