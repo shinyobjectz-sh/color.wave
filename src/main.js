@@ -29,6 +29,7 @@ import { mount } from "svelte";
 import { loadRuntime } from "virtual:workbook-runtime";
 import { wbSubstrate } from "./lib/substrateBackend.svelte.js";
 import { autoSave } from "./lib/autoSave.svelte.js";
+import { maybeMountMigrationToast } from "./lib/legacyMigration.svelte.js";
 
 (async () => {
   try {
@@ -49,6 +50,13 @@ import { autoSave } from "./lib/autoSave.svelte.js";
   // it doesn't seed INITIAL_COMPOSITION on top of restored state.
   const { default: App } = await import("./App.svelte");
   mount(App, { target: document.getElementById("app") });
+
+  // One-time post-mount: surface the legacy IDB → file migration if
+  // the browser still has pre-substrate state. Idempotent; gated by
+  // localStorage flag.
+  maybeMountMigrationToast().catch((e) => {
+    console.warn("[main] legacy migration check failed:", e);
+  });
 
   // Forward "save" messages from the composition iframe to the SDK's
   // save handler. The iframe is sandboxed and captures Cmd+S when it
