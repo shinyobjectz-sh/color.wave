@@ -16,23 +16,27 @@
 // Wrapped in an async IIFE rather than top-level await so the
 // module evaluates without TLA semantics — vite-plugin-singlefile
 // flattens chunks in a way that interacts poorly with TLA wrappers.
+// MUST be first: publishes globalThis.__wb_yjs as a side effect so
+// that any subsequent import of `@work.books/runtime` (whose yjsHost
+// shim reads the global at module-top-level) doesn't throw. Bare
+// side-effect import — don't move it.
+import "./lib/yjsGlobal.js";
+
 import { mount } from "svelte";
-import App from "./App.svelte";
 import { loadRuntime } from "virtual:workbook-runtime";
 import { bootstrapYjs } from "./lib/yjsBackend.svelte.js";
 import { autoSave } from "./lib/autoSave.svelte.js";
-// Static yjs import keeps the module init order stable through
-// vite-plugin-singlefile's flatten step. Same pattern that the
-// pre-Phase-2 build used for `loro-crdt`.
-//
-// Doubles as the canonical Y instance for the runtime bundle: the
-// runtime's yjsHost.ts reads `globalThis.__wb_yjs` instead of
-// importing "yjs" directly, so we have ONE Yjs across the host app
-// and the runtime. Without this, both sides would bundle their own
-// copy and `instanceof Y.Doc` would fail across the boundary
-// (https://github.com/yjs/yjs/issues/438).
-import * as Y from "yjs";
-globalThis.__wb_yjs = Y;
+
+// IMPORTANT: App.svelte is dynamic-imported INSIDE the IIFE below — not
+// statically up here. composition.svelte.js calls `wb.text("composition",
+// { initial: INITIAL_COMPOSITION })` at module-load time. wb.text's
+// readyPromise resolves as soon as the Y.Doc is registered (during
+// mountHtmlWorkbook) and seeds INITIAL_COMPOSITION if the Y.Text is empty.
+// IndexedDB hydration runs LATER inside bootstrapYjs(), so a static App
+// import would race: wb.text seeds the initial → IDB applies persisted
+// state on top → clips appear duplicated on every refresh. Dynamic-
+// importing App after bootstrapYjs() finishes guarantees composition.js
+// evaluates against a Y.Doc that's already been hydrated from IDB.
 
 (async () => {
   try {
@@ -47,7 +51,7 @@ globalThis.__wb_yjs = Y;
     // Hand the runtime-registered Y.Doc handle to yjsBackend so the
     // studio's existing API (getDoc / snapshotCompositionBytes) keeps
     // working unchanged. Side effects: legacy Loro IDB port + y-
-    // indexeddb provider attach.
+    // indexeddb provider attach + awaits whenSynced.
     await bootstrapYjs();
 
     // Auto-save: subscribe to y-indexeddb provider events so the
@@ -59,6 +63,10 @@ globalThis.__wb_yjs = Y;
     // composition starts from INITIAL_COMPOSITION rather than
     // restored bytes.
   }
+
+  // Dynamic import — see note above. Composition store evaluates here,
+  // AFTER the Y.Doc has been hydrated from IndexedDB.
+  const { default: App } = await import("./App.svelte");
   mount(App, { target: document.getElementById("app") });
 
   // Forward "save" messages from the composition iframe to the SDK's

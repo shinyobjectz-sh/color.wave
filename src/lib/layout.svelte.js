@@ -52,8 +52,8 @@ function readLeftTab() {
 }
 
 class LayoutStore {
-  chatWidth      = $state(readInt(KEY_CHAT, 440));
-  timelineHeight = $state(readInt(KEY_TL, 180));
+  chatWidth      = $state(readInt(KEY_CHAT, 500));
+  timelineHeight = $state(readInt(KEY_TL, 240));
   // Pixels-per-second the timeline uses for clip widths and ruler
   // tick spacing. Single knob — drag/scrub/render all funnel through it.
   pps            = $state(readFloat(KEY_PPS, PPS_BASE));

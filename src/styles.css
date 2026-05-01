@@ -10,6 +10,10 @@
   --color-page:     #09090b; /* zinc-950 */
   --color-surface:  #18181b; /* zinc-900 */
   --color-surface-2:#27272a; /* zinc-800 */
+  /* Player stage — sits behind the video canvas; one notch lighter
+   * than --color-surface so the black canvas reads as a distinct
+   * frame rather than dissolving into the chrome. */
+  --color-stage:    #131316; /* sits between zinc-950 page and zinc-900 surface */
   --color-fg:       #fafafa; /* zinc-50  */
   --color-fg-muted: #a1a1aa; /* zinc-400 */
   --color-fg-faint: #52525b; /* zinc-600 */

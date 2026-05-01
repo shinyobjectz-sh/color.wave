@@ -18,6 +18,9 @@
 
   import { onMount } from "svelte";
   import logoUrl from "../logo.svg";
+  import pkg from "../../package.json";
+
+  const APP_VERSION: string = (pkg as { version: string }).version;
 
   type MenuItem =
     | { kind: "item"; label: string; accel?: string; onSelect: () => void; disabled?: boolean }
@@ -136,6 +139,7 @@
   <div class="mb-logo" aria-hidden="true">
     <img src={logoUrl} alt="" />
   </div>
+  <span class="mb-version" aria-label={`version ${APP_VERSION}`}>v{APP_VERSION}</span>
   {#each menus as m (m.label)}
     <div class="mb-slot">
       <button
@@ -179,7 +183,7 @@
   }
   .mb-logo {
     display: flex; align-items: center;
-    padding: 0 10px 0 12px;
+    padding: 0 6px 0 12px;
     user-select: none;
     pointer-events: none;
   }
@@ -187,6 +191,17 @@
     display: block;
     height: 16px; width: auto;
     opacity: 0.92;
+  }
+  .mb-version {
+    display: inline-flex; align-items: center;
+    padding-right: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-fg-muted);
+    opacity: 0.55;
+    letter-spacing: 0.02em;
+    user-select: none;
+    pointer-events: none;
   }
   .mb-slot { position: relative; display: flex; }
   .mb-trigger {
