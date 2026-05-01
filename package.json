@@ -15,21 +15,31 @@
   ],
   "scripts": {
     "dev": "workbook dev",
-    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html"
+    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html",
+    "postinstall": "node scripts/fix-workbooks-symlink.mjs"
   },
   "dependencies": {
-    "svelte": "^5.0.0",
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
     "@work.books/runtime": "workspace:*",
+    "dompurify": "^3.4.2",
+    "fflate": "^0.8.2",
+    "just-bash": "^2.14.3",
     "loro-crdt": "^1.0.0",
-    "just-bash": "^2.14.3"
+    "svelte": "^5.0.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.2.0",
     "@work.books/cli": "workspace:*",
+    "age-encryption": "^0.3.0",
+    "apache-arrow": "^21.1.0",
+    "esbuild": "^0.28.0",
     "tailwindcss": "^4.2.0",
     "terser": "^5.46.2",
+    "unist-util-visit": "^5.1.0",
     "vite": "^6.0.0",
+    "vite-plugin-singlefile": "^2.3.3",
     "vite-plugin-wasm": "^3.3.0"
   }
 }
