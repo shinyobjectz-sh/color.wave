@@ -1,3 +1,0 @@
-[submodule "vendor/workbooks"]
-	path = vendor/workbooks
-	url = https://github.com/shinyobjectz-sh/workbooks.git

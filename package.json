@@ -10,13 +10,9 @@
     "url": "https://github.com/shinyobjectz-sh/color.wave.git"
   },
   "homepage": "https://github.com/shinyobjectz-sh/color.wave",
-  "workspaces": [
-    "vendor/workbooks/packages/*"
-  ],
   "scripts": {
     "dev": "workbook dev",
-    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html",
-    "postinstall": "node scripts/fix-workbooks-symlink.mjs"
+    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",
