@@ -9,13 +9,53 @@
 // vendored skills bundle (see skills.js). User skills are always
 // prefixed `user/` to distinguish them from vendored ones.
 
-import {
-  bootstrapLoro,
-  getDoc,
-  readUserSkills,
-  pushUserSkill,
-  removeUserSkillByName,
-} from "./loroBackend.svelte.js";
+import { wb } from "@work.books/runtime";
+import { bootstrapLoro, getDoc } from "./loroBackend.svelte.js";
+
+// User skills are keyed by `name` (the load_skill agent tool prefixes
+// `user/`). wb.collection requires `.id` — we adapt by storing
+// records as `{ id: name, name, content }` so the SDK's dedupe-by-id
+// pattern collapses duplicate uploads of the same skill name.
+//
+// Legacy wire format: pre-SDK workbooks stored `{name, content}`
+// entries with no `id`. The SDK's reader skips ill-shaped entries,
+// so legacy data would disappear. Our hydration step (see migrateLegacy
+// below) reads the underlying Loro list once and rewrites any legacy
+// records into the new id-keyed shape, preserving the user's skills
+// across the upgrade.
+const USER_SKILLS_LIST = "user-skills";
+const userSkillsCollection = wb.collection(USER_SKILLS_LIST);
+
+/** One-time migration: walk the raw Loro list and rewrite any
+ *  legacy `{name, content}` entries into `{id, name, content}` so
+ *  the SDK reader picks them up. Idempotent. */
+async function migrateLegacy() {
+  await bootstrapLoro();
+  const doc = getDoc();
+  if (!doc) return;
+  const list = doc.getList(USER_SKILLS_LIST);
+  let changed = false;
+  const next = [];
+  for (const v of list.toArray()) {
+    if (typeof v !== "string") continue;
+    let parsed;
+    try { parsed = JSON.parse(v); } catch { continue; }
+    if (!parsed || typeof parsed !== "object") continue;
+    if (typeof parsed.id !== "string" || !parsed.id) {
+      if (typeof parsed.name === "string" && parsed.name) {
+        parsed = { id: parsed.name, ...parsed };
+        changed = true;
+      } else {
+        continue; // unrecoverable
+      }
+    }
+    next.push(parsed);
+  }
+  if (!changed) return;
+  if (list.length > 0) list.delete(0, list.length);
+  for (const r of next) list.push(JSON.stringify(r));
+  doc.commit();
+}
 
 const MAX_SKILL_BYTES = 1 * 1024 * 1024; // 1 MB markdown file cap
 
@@ -27,19 +67,21 @@ class UserSkillsStore {
   hydrated = $state(false);
 
   constructor() {
-    if (getDoc()) {
-      const stored = readUserSkills();
-      if (stored.length > 0) this.items = stored;
+    // Run the legacy-shape migration BEFORE the SDK's first read so
+    // pre-SDK workbooks don't appear empty on first open. The SDK
+    // subscription below picks up the migrated entries on the next
+    // commit fire.
+    migrateLegacy().catch((e) => console.warn("user-skills: migrate failed:", e?.message ?? e));
+
+    userSkillsCollection.subscribe((list) => {
+      // Strip the synthesized `id` field on read so consumers (which
+      // expect `{name, content}`) keep working. Items are returned
+      // sorted by insertion order; the legacy code didn't sort either.
+      this.items = list.map(({ name, content }) => ({ name, content }));
       this.hydrated = true;
-    } else {
-      bootstrapLoro()
-        .then(() => {
-          const stored = readUserSkills();
-          if (stored.length > 0) this.items = stored;
-          this.hydrated = true;
-        })
-        .catch(() => { this.hydrated = true; });
-    }
+    });
+    userSkillsCollection.ready().then(() => { this.hydrated = true; })
+      .catch(() => { this.hydrated = true; });
   }
 
   /** Add a skill from a markdown File object. The skill name is
@@ -67,7 +109,7 @@ class UserSkillsStore {
 
     const skill = { name, content: text };
     this.items = [...this.items, skill];
-    await pushUserSkill(skill);
+    userSkillsCollection.upsert({ id: name, ...skill });
     return skill;
   }
 
@@ -79,13 +121,13 @@ class UserSkillsStore {
     }
     const skill = { name: trimmed, content: String(content ?? "") };
     this.items = [...this.items, skill];
-    await pushUserSkill(skill);
+    userSkillsCollection.upsert({ id: trimmed, ...skill });
     return skill;
   }
 
   remove(name) {
     this.items = this.items.filter((s) => s.name !== name);
-    removeUserSkillByName(name);
+    userSkillsCollection.remove(name);
   }
 
   /** Lookup by unprefixed name. The skills.js loadSkill checks here

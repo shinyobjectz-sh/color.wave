@@ -23,14 +23,20 @@
 //                        extract the <wb-doc id="hyperframes-state"> base64
 //                        snapshot and import into the current Loro doc.
 
-import { writeComposition, replaceAssets, getDoc } from "./loroBackend.svelte.js";
+import { getDoc } from "./loroBackend.svelte.js";
+import { wb } from "@work.books/runtime";
 import { INITIAL_COMPOSITION, IFRAME_RUNTIME_AUTOPLAY } from "./initial.js";
+
+// Project I/O writes through the same wb.* primitives the stores use,
+// so the diff-shrink + dedup-by-id semantics apply uniformly.
+const compositionText = wb.text("composition");
+const assetsCollection = wb.collection("assets");
 
 // ─── new ──────────────────────────────────────────────────────────────
 
 export async function newProject() {
-  await writeComposition(INITIAL_COMPOSITION);
-  await replaceAssets([]);
+  compositionText.set(INITIAL_COMPOSITION);
+  assetsCollection.replaceAll([]);
 }
 
 // ─── open ─────────────────────────────────────────────────────────────
@@ -89,7 +95,7 @@ export async function openProject(file) {
     );
     composition = composition.trim();
     if (composition) {
-      await writeComposition(composition);
+      compositionText.set(composition);
       return { ok: true };
     }
   }

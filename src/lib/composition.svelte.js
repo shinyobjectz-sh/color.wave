@@ -6,13 +6,14 @@
 import { INITIAL_COMPOSITION, IFRAME_RUNTIME, IFRAME_RUNTIME_AUTOPLAY } from "./initial.js";
 import { compositionDecorators } from "./pluginApi.svelte.js";
 import { assets } from "./assets.svelte.js";
-import {
-  bootstrapLoro,
-  getDoc,
-  readComposition,
-  writeComposition,
-} from "./loroBackend.svelte.js";
+import { wb } from "@work.books/runtime";
 import { recordEdit } from "./historyBackend.svelte.js";
+
+// Composition body is a wb.text — char-level merge so concurrent edits
+// at non-overlapping regions of a long composition merge cleanly.
+// `initial` applies only when the underlying LoroText is empty after
+// hydration; existing user state always wins.
+const compositionText = wb.text("composition", { initial: INITIAL_COMPOSITION });
 
 function escapeRe(s) {
   return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -172,45 +173,41 @@ class CompositionStore {
   hydrated = $state(false);
 
   constructor() {
-    // main.js awaits bootstrapLoro() before mounting, so by the time
-    // any component constructs this store, getDoc() is non-null.
-    // Hydrate synchronously to avoid the microtask gap that would
-    // otherwise let the first render see INITIAL_COMPOSITION before
-    // the saved state lands.
-    if (getDoc()) {
-      const stored = readComposition();
-      if (stored && stored.length > 0) {
-        this.html = stored;
+    // wb.text resolves the LoroDoc asynchronously, but the underlying
+    // primitive surfaces a synchronous `.value` getter that returns ""
+    // until hydrated. Subscribe to ride changes (post-hydration the
+    // restored state lands; from then on, only remote edits move it
+    // — set() updates this.html directly).
+    compositionText.subscribe((next) => {
+      // First-fire post-hydration carries the restored state. Treat
+      // a non-empty value as "we're past hydration"; otherwise leave
+      // INITIAL_COMPOSITION as the placeholder (mirrors the legacy
+      // sync hydrate path's "stored && stored.length > 0" guard).
+      if (typeof next !== "string") return;
+      if (next.length > 0 && next !== this.html) {
+        this.html = next;
         this.revision += 1;
       }
       this.hydrated = true;
-    } else {
-      // Fallback for the rare case bootstrap didn't run before mount
-      // (e.g. an alternate entry point that skips main.js's await).
-      bootstrapLoro()
-        .then(() => {
-          const stored = readComposition();
-          if (stored && stored.length > 0) {
-            this.html = stored;
-            this.revision += 1;
-          }
-          this.hydrated = true;
-        })
-        .catch((e) => {
-          console.warn("composition: hydrate failed:", e?.message ?? e);
-          this.hydrated = true;
-        });
-    }
+    });
+    // Belt-and-suspenders: mark hydrated once the doc resolves even if
+    // the LoroText is empty (no prior session).
+    compositionText.ready().then(() => { this.hydrated = true; })
+      .catch((e) => {
+        console.warn("composition: hydrate failed:", e?.message ?? e);
+        this.hydrated = true;
+      });
   }
 
-  /** Apply the current html as a Loro op + schedule snapshot save +
-   *  record an audit-chain commit so the history primitive captures
-   *  this edit. The commit is fire-and-forget; recordEdit catches its
-   *  own errors so a history failure doesn't break the editor.
-   *  An optional message overrides the default — used by revert to
-   *  tag commits with their source ("revert to abc1234"). */
+  /** Apply the current html via wb.text + record an audit-chain
+   *  commit. wb.text.set internally diff-shrinks against the current
+   *  LoroText state and calls doc.commit(), which fires the autosave
+   *  layer's local-commit subscription (→ debounced IDB snapshot).
+   *  recordEdit catches its own errors so a history failure doesn't
+   *  break the editor. An optional message overrides the default —
+   *  used by revert to tag commits with their source. */
   _persist(auditMessage) {
-    writeComposition(this.html);
+    compositionText.set(this.html);
     const msg = auditMessage ?? `composition save (${this.html.length} chars)`;
     recordEdit("composition", this.html, msg);
   }
@@ -273,7 +270,11 @@ class CompositionStore {
     this.playing = false;
     this.revision += 1;
     if (opts?.suppressAudit) {
-      writeComposition(this.html);
+      // Move the visible state without recording an audit commit
+      // (cursor-only undo path). Still calls doc.commit() under the
+      // hood via wb.text.set so the IDB persistence subscription
+      // fires.
+      compositionText.set(this.html);
     } else {
       this._persist(auditMessage);
     }
