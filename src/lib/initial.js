@@ -6,8 +6,12 @@
 export const INITIAL_COMPOSITION = `<style>
   /* Use vmin-based sizing so type and gaps shrink for portrait /
    * square ratios. clamp() guards extreme aspect ratios. */
+  /* Theme via --cw-* vars so palette-swap (or any future theming
+   * surface) recolors precisely. Fallbacks are neutral zinc — match
+   * the editor's mono identity until the user picks a palette. */
   body { margin: 0; width: 100vw; height: 100vh;
-         background: #0c0a09; color: #fafaf9;
+         background: var(--cw-bg, #09090b);
+         color: var(--cw-fg, #fafafa);
          font-family: "Inter", system-ui, sans-serif; overflow: hidden; }
   .scene { position: absolute; inset: 0; display: none;
            align-items: center; justify-content: center; flex-direction: column;
@@ -16,21 +20,27 @@ export const INITIAL_COMPOSITION = `<style>
   .scene.active { display: flex; }
   .eyebrow { font-family: "JetBrains Mono", ui-monospace, monospace;
              font-size: clamp(10px, 1.8vmin, 16px);
-             letter-spacing: 0.18em; color: #fed7aa;
+             letter-spacing: 0.18em;
+             color: var(--cw-accent, #d4d4d8);
              text-transform: uppercase; }
   .title { font-size: clamp(36px, 9vmin, 96px);
            font-weight: 700; line-height: 1.02; margin: 0;
            letter-spacing: -0.02em; max-width: 18ch; }
   .subtitle { font-size: clamp(14px, 2.6vmin, 26px);
-              color: #a8a29e; max-width: 36ch; margin: 0;
+              color: var(--cw-mute, #a1a1aa);
+              max-width: 36ch; margin: 0;
               line-height: 1.45; }
   .stat { font-size: clamp(64px, 18vmin, 200px);
-          font-weight: 800; color: #fed7aa; line-height: 1;
-          letter-spacing: -0.04em; }
-  .stat-label { font-size: clamp(12px, 2vmin, 22px); color: #a8a29e; }
-  .outro b { color: #fed7aa; }
+          font-weight: 800;
+          color: var(--cw-accent, #d4d4d8);
+          line-height: 1; letter-spacing: -0.04em; }
+  .stat-label { font-size: clamp(12px, 2vmin, 22px);
+                color: var(--cw-mute, #a1a1aa); }
+  .outro b { color: var(--cw-accent, #d4d4d8); }
   .pill { display: inline-flex; padding: 0.6vmin 1.6vmin; border-radius: 999px;
-          background: #292524; border: 1px solid #44403c; color: #fed7aa;
+          background: color-mix(in srgb, var(--cw-fg, #fafafa) 6%, transparent);
+          border: 1px solid color-mix(in srgb, var(--cw-fg, #fafafa) 16%, transparent);
+          color: var(--cw-accent, #d4d4d8);
           font-family: "JetBrains Mono", ui-monospace, monospace;
           font-size: clamp(10px, 1.6vmin, 14px); letter-spacing: 0.04em; }
 </style>

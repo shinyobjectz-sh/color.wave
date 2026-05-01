@@ -23,7 +23,31 @@ export default {
     // is the cleaner path. (If we ever need to support older
     // browsers, we'd need to disable singlefile too.)
     plugins: [tailwindcss(), wasm()],
-    build: { target: "esnext" },
+    build: {
+      target: "esnext",
+      minify: "terser",
+      terserOptions: {
+        ecma: 2020,
+        compress: {
+          passes: 3,
+          pure_getters: true,
+          unsafe: true,
+          unsafe_arrows: true,
+          unsafe_methods: true,
+          unsafe_proto: true,
+          // Keep [save] / [autosave] / [idb] runtime diagnostics; only
+          // the dev-only stack-trace logs (which we deleted at source)
+          // were noise. Leaving drop_console false on purpose.
+          drop_console: false,
+        },
+        mangle: { properties: false },
+        format: {
+          // Strip JSDoc / explanatory header comments (we have a lot
+          // of them — they survive minification by default).
+          comments: false,
+        },
+      },
+    },
     resolve: {
       alias: [
         // just-bash imports node:zlib for its gzip/gunzip/zcat

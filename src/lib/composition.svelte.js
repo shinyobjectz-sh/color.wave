@@ -235,6 +235,12 @@ class CompositionStore {
    * script is appended. Decorators that throw are skipped with a
    * console warn — a buggy plugin shouldn't break the player. */
   buildSrcdoc() {
+    // Read revision so any caller wrapping this in $derived/$effect
+    // tracks it as a reactive dep. wb.composition.repaint() bumps
+    // revision when a plugin's internal closure state changes
+    // (palette-swap switches preset) — without this read the cached
+    // $derived stays valid and the iframe remounts with stale srcdoc.
+    void this.revision;
     let body = this.html;
     for (const dec of compositionDecorators) {
       try {

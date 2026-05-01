@@ -8,11 +8,13 @@
   import MenuBar from "./components/MenuBar.svelte";
   import PluginManager from "./components/PluginManager.svelte";
   import SkillManager from "./components/SkillManager.svelte";
+  import HistoryModal from "./components/HistoryModal.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
   import { mcpBridge, isMcpMode } from "./lib/mcpBridge.svelte.js";
   import { exportProject } from "./lib/exportProject.js";
   import { newProject, openProject, exportHyperframeHtml } from "./lib/projectIO.js";
+  import { autoSave } from "./lib/autoSave.svelte.js";
   // Persistence is the workbook runtime's job — Cmd+S is handled by
   // the SDK's save handler (it serializes <wb-doc> state into the
   // .workbook.html file with its own toast). Nothing to wire here.
@@ -21,6 +23,7 @@
   let renderOpen = $state(false);
   let pluginsOpen = $state(false);
   let skillsOpen = $state(false);
+  let historyOpen = $state(false);
   let packaging = $state(false);
   let packageStatus = $state("");
 
@@ -64,6 +67,14 @@
       packageStatus = `export failed: ${r.error}`;
     }
     setTimeout(() => { packageStatus = ""; }, 3000);
+  }
+
+  // Save trigger — explicit user action (File → Save). Routes through
+  // autoSave so status stays in sync with auto-save bookkeeping. The
+  // first call grants the FSA file handle; every subsequent edit
+  // auto-saves silently through that handle without dialogs.
+  async function triggerSave() {
+    await autoSave.saveNow();
   }
 
   async function onPackage() {
@@ -125,11 +136,28 @@
       onPackage={onPackage}
       onRender={() => renderOpen = true}
       onSettings={() => settingsOpen = true}
+      onSave={triggerSave}
+      onHistory={() => historyOpen = true}
       onPluginManager={() => pluginsOpen = true}
       onSkillManager={() => skillsOpen = true}
     />
 
     <span class="flex-1"></span>
+
+    <span
+      class="font-mono text-[10px] tabular-nums px-2 py-0.5 rounded-full border self-center"
+      class:text-accent={autoSave.status === "saved"}
+      class:border-accent={autoSave.status === "saved"}
+      class:text-fg-muted={autoSave.status !== "saved" && autoSave.status !== "error"}
+      class:border-border={autoSave.status !== "saved" && autoSave.status !== "error"}
+      class:text-rose-300={autoSave.status === "error"}
+      class:border-rose-800={autoSave.status === "error"}
+      title={autoSave.status === "error"
+        ? `Auto-save error: ${autoSave.errorMessage}`
+        : "Saves automatically to local storage on every change"}
+    >
+      {#if autoSave.status === "saved"}● saved{:else if autoSave.status === "saving"}↻ saving…{:else if autoSave.status === "pending"}● pending{:else if autoSave.status === "error"}⚠ {autoSave.errorMessage}{:else}○ saved{/if}
+    </span>
 
     <span class="font-mono text-[10px] tabular-nums px-2 py-0.5 rounded-full border self-center"
           class:text-accent={env.satisfied}
@@ -206,6 +234,7 @@
 <RenderModal bind:open={renderOpen} />
 <PluginManager bind:open={pluginsOpen} />
 <SkillManager bind:open={skillsOpen} />
+<HistoryModal bind:open={historyOpen} />
 
 <!-- Hidden file input for File > Open Project. Accepts hyperframe.html
      and .workbook.html — projectIO.openProject sniffs the format. -->

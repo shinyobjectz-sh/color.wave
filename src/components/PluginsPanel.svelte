@@ -36,8 +36,7 @@
   let query = $state("");
   let filteredSections = $derived.by(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return orderedSections;
-    return orderedSections.filter((s) => {
+    const out = !q ? orderedSections : orderedSections.filter((s) => {
       const p = pluginById.get(s.pluginId);
       const hay = [
         s.label,
@@ -49,6 +48,7 @@
       ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(q);
     });
+    return out;
   });
 
   // Collapsed cards (per-session, not persisted).
@@ -61,15 +61,40 @@
 
   // Plain-JS plugins that registered with `mount(el) -> cleanup`
   // (vs Svelte component) — apply via use:action.
+  //
+  // The update() callback is critical for plugin upgrades: when a
+  // plugin replaces its registration (deactivate → activate during
+  // an in-place upgrade), the section list goes [old]→[]→[new] in
+  // one tick. Svelte's reconciler sees the same {pluginId:label} key
+  // and reuses the existing <div>, never re-running this action — so
+  // without update() the OLD plugin's DOM stays mounted forever.
+  // update() tears down the old mount and remounts with the new fn.
   function mountSection(node, fn) {
     let cleanup;
-    try { cleanup = fn(node); } catch (e) { console.warn("plugin section mount threw:", e); }
+    let currentFn = fn;
+    function start() {
+      try { cleanup = currentFn(node); }
+      catch (e) { console.warn("plugin section mount threw:", e); }
+    }
+    function stop() {
+      if (typeof cleanup === "function") {
+        try { cleanup(); } catch (e) { console.warn("plugin section cleanup threw:", e); }
+      }
+      cleanup = undefined;
+    }
+    start();
     return {
-      destroy() {
-        if (typeof cleanup === "function") {
-          try { cleanup(); } catch (e) { console.warn("plugin section cleanup threw:", e); }
-        }
+      update(nextFn) {
+        if (nextFn === currentFn) return;
+        stop();
+        // Wipe DOM left behind by the old mount. Plugins that imperatively
+        // injected children won't have those torn down by Svelte; clear
+        // the slate so the new mount starts on an empty node.
+        node.innerHTML = "";
+        currentFn = nextFn;
+        start();
       },
+      destroy() { stop(); },
     };
   }
 </script>
@@ -105,7 +130,7 @@
     </div>
   {:else}
     <ul class="pp-list">
-      {#each filteredSections as section (section.pluginId + ":" + section.label)}
+      {#each filteredSections as section (section._uid ?? (section.pluginId + ":" + section.label))}
         {@const p = pluginById.get(section.pluginId)}
         <li class="pp-card">
           <header class="pp-head">

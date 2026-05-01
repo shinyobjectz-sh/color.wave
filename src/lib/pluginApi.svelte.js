@@ -101,10 +101,25 @@ export function registerChatController(c) {
   return () => { if (controllers.chat === c) controllers.chat = null; };
 }
 
+// Monotonic id stamped onto every registered item — gives the {#each}
+// blocks in PluginsPanel / ChatPanel / etc. a guaranteed-unique key
+// even if a plugin (or a buggy double-activation) tries to register
+// two items with the same pluginId+label. Also used as the splice
+// match key (see below).
+let _itemUid = 0;
+
 function appendAndTrack(api, list, item) {
+  if (item._uid == null) item._uid = ++_itemUid;
+  const uid = item._uid;
   list.push(item);
   track(api, () => {
-    const idx = list.findIndex((x) => x === item);
+    // CRITICAL: match by _uid, NOT by reference. Svelte 5 wraps every
+    // object pushed into a $state() array in a Proxy for deep
+    // reactivity — so `list[i] === item` is forever false (Proxy vs
+    // raw). Without _uid matching, plugin teardown silently no-ops
+    // and old sections / tabs / decorators accumulate across update
+    // cycles, breaking plugin upgrades.
+    const idx = list.findIndex((x) => x._uid === uid);
     if (idx >= 0) list.splice(idx, 1);
   });
 }

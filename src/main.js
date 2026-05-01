@@ -19,6 +19,7 @@ import { mount } from "svelte";
 import App from "./App.svelte";
 import { loadRuntime } from "virtual:workbook-runtime";
 import { bootstrapLoro } from "./lib/loroBackend.svelte.js";
+import { autoSave } from "./lib/autoSave.svelte.js";
 // loroBackend.svelte.js statically imports LoroDoc from loro-crdt
 // AND assigns the full namespace to window.__wb_loro at module
 // load. Importing it here is what gets the loro module into the
@@ -41,6 +42,10 @@ import { bootstrapLoro } from "./lib/loroBackend.svelte.js";
     // the studio's existing API (getDoc / readComposition /
     // writeComposition) keeps working unchanged.
     await bootstrapLoro();
+
+    // Auto-save: subscribe to Loro commits so every state change
+    // silently writes through the file handle (once granted).
+    await autoSave.init();
   } catch (e) {
     console.error("color.wave: runtime bootstrap failed:", e);
     // Continue anyway with empty state — the app is still usable;
@@ -56,6 +61,12 @@ import { bootstrapLoro } from "./lib/loroBackend.svelte.js";
   // the SDK saveHandler.mjs at runtime.
   window.addEventListener("message", (ev) => {
     if (ev.data?.type !== "save") return;
-    if (typeof window.workbookSave === "function") window.workbookSave();
+    console.log("[save] received iframe-forwarded save request");
+    if (typeof window.workbookSave === "function") {
+      window.workbookSave();
+    } else {
+      console.warn("[save] iframe forwarded save but window.workbookSave is undefined");
+    }
   });
+
 })();
