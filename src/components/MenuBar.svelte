@@ -94,21 +94,11 @@
       ],
     },
     {
-      label: "Plugins",
+      label: "Manage",
       items: [
-        { kind: "item", label: "Plugin Manager…", onSelect: () => onPluginManager?.(), disabled: !onPluginManager },
-      ],
-    },
-    {
-      label: "Skills",
-      items: [
-        { kind: "item", label: "Skill Manager…", onSelect: () => onSkillManager?.(), disabled: !onSkillManager },
-      ],
-    },
-    {
-      label: "Integrations",
-      items: [
-        { kind: "item", label: "Integrations Manager…", onSelect: () => onIntegrationManager?.(), disabled: !onIntegrationManager },
+        { kind: "item", label: "Plugins…",      onSelect: () => onPluginManager?.(),      disabled: !onPluginManager },
+        { kind: "item", label: "Skills…",       onSelect: () => onSkillManager?.(),       disabled: !onSkillManager },
+        { kind: "item", label: "Integrations…", onSelect: () => onIntegrationManager?.(), disabled: !onIntegrationManager },
       ],
     },
   ]);
