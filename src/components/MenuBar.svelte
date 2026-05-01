@@ -41,13 +41,11 @@
     "read-only": "This browser cannot save changes",
   } as const;
 
-  function onStatusClick() {
-    // For all non-saved states, the right action is to invoke the
-    // transport's "save now" path. For T3 this triggers showSaveFilePicker;
-    // for T4 it queues a download. The autoSave store is the single
-    // entry point.
-    void autoSave.saveNow();
-  }
+  // Status pill is non-interactive — autosave fires on every change,
+  // and explicit save is on Cmd+S / File → Save. Was previously a
+  // click-to-save button, but the click was a third path duplicating
+  // the keybind + menu item. Kept the visual treatment (color +
+  // glyph) since it's a useful at-a-glance state indicator.
 
   type MenuItem =
     | { kind: "item"; label: string; accel?: string; onSelect: () => void; disabled?: boolean }
@@ -167,20 +165,19 @@
     <img src={logoUrl} alt="" />
   </div>
   <span class="mb-version" aria-label={`version ${APP_VERSION}`}>v{APP_VERSION}</span>
-  <button
-    type="button"
+  <span
     class="mb-substrate-status"
     class:status-saved={autoSave.status === "saved-in-file"}
     class:status-needs={autoSave.status === "needs-permission"}
     class:status-download={autoSave.status === "download-to-keep"}
     class:status-readonly={autoSave.status === "read-only"}
-    onclick={onStatusClick}
+    role="status"
     aria-label={STATUS_LABELS[autoSave.status] ?? "save status"}
     title={STATUS_LABELS[autoSave.status] ?? "save status"}
   >
     <span class="dot">{STATUS_GLYPHS[autoSave.status] ?? "·"}</span>
     <span class="text">{STATUS_LABELS[autoSave.status] ?? ""}</span>
-  </button>
+  </span>
   {#each menus as m (m.label)}
     <div class="mb-slot">
       <button
@@ -248,20 +245,13 @@
     display: inline-flex; align-items: center; gap: 4px;
     padding: 0 8px;
     height: 22px;
-    background: transparent;
-    border: 0;
     border-radius: 4px;
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--color-fg-muted);
-    cursor: pointer;
     align-self: center;
     white-space: nowrap;
-    transition: background 100ms ease, color 100ms ease;
-  }
-  .mb-substrate-status:hover {
-    background: var(--color-surface);
-    color: var(--color-fg);
+    user-select: none;
   }
   .mb-substrate-status .dot {
     font-size: 11px;
@@ -273,16 +263,13 @@
   }
   .mb-substrate-status.status-saved {
     color: var(--color-fg-faint);
-    cursor: default;
   }
-  .mb-substrate-status.status-saved:hover { background: transparent; }
   .mb-substrate-status.status-needs .dot,
   .mb-substrate-status.status-download .dot {
     color: var(--color-accent);
   }
   .mb-substrate-status.status-readonly {
     opacity: 0.4;
-    cursor: not-allowed;
   }
   .mb-slot { position: relative; display: flex; }
   .mb-trigger {
