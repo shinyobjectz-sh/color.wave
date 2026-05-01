@@ -27,11 +27,14 @@ export default {
       target: "esnext",
       minify: "terser",
       terserOptions: {
+        ecma: 2020,
         compress: {
           passes: 3,
           pure_getters: true,
           unsafe: true,
           unsafe_arrows: true,
+          unsafe_methods: true,
+          unsafe_proto: true,
           // Keep [save] / [autosave] / [idb] runtime diagnostics; only
           // the dev-only stack-trace logs (which we deleted at source)
           // were noise. Leaving drop_console false on purpose.
