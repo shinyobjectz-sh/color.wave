@@ -1,66 +1,115 @@
-// palette-swap — recolor the entire composition with a one-click preset.
-//
-// HOW IT WORKS
-// On every render, the decorator scans the composition's <style> blocks
-// for hex colors, classifies each one (background / foreground / accent
-// / muted) by HSL, and remaps it to the active preset's slot. Plus it
-// injects --cw-bg / --cw-fg / --cw-mute / --cw-accent at :root so any
-// composition that opts into those vars (e.g. `var(--cw-bg, #000)`)
-// gets precise slot control as well.
-//
-// Net: install + pick a preset → ANY composition recolors. No author
-// opt-in required, but available for precise control.
-//
-// The active preset id is persisted via wb.storage so it round-trips
-// through Cmd+S along with the rest of the workbook.
+// src/presets.js
+var PRESETS = [
+  {
+    id: "neutral-dark",
+    label: "Neutral Dark",
+    swatches: ["#0f172a", "#f1f5f9", "#94a3b8", "#cbd5e1"],
+    vars: {
+      "--cw-bg": "#0f172a",
+      "--cw-fg": "#f1f5f9",
+      "--cw-mute": "#94a3b8",
+      "--cw-accent": "#cbd5e1"
+    }
+  },
+  {
+    id: "neutral-light",
+    label: "Neutral Light",
+    swatches: ["#f8fafc", "#0f172a", "#475569", "#1e293b"],
+    vars: {
+      "--cw-bg": "#f8fafc",
+      "--cw-fg": "#0f172a",
+      "--cw-mute": "#475569",
+      "--cw-accent": "#1e293b"
+    }
+  },
+  {
+    id: "rose-noir",
+    label: "Rose Noir",
+    swatches: ["#1c1917", "#fafaf9", "#a8a29e", "#f43f5e"],
+    vars: {
+      "--cw-bg": "#1c1917",
+      "--cw-fg": "#fafaf9",
+      "--cw-mute": "#a8a29e",
+      "--cw-accent": "#f43f5e"
+    }
+  },
+  {
+    id: "amber-graphite",
+    label: "Amber Graphite",
+    swatches: ["#18181b", "#fafaf9", "#71717a", "#fbbf24"],
+    vars: {
+      "--cw-bg": "#18181b",
+      "--cw-fg": "#fafaf9",
+      "--cw-mute": "#71717a",
+      "--cw-accent": "#fbbf24"
+    }
+  },
+  {
+    id: "ocean",
+    label: "Ocean",
+    swatches: ["#082f49", "#e0f2fe", "#7dd3fc", "#38bdf8"],
+    vars: {
+      "--cw-bg": "#082f49",
+      "--cw-fg": "#e0f2fe",
+      "--cw-mute": "#7dd3fc",
+      "--cw-accent": "#38bdf8"
+    }
+  },
+  {
+    id: "forest",
+    label: "Forest",
+    swatches: ["#14532d", "#ecfccb", "#86efac", "#bef264"],
+    vars: {
+      "--cw-bg": "#14532d",
+      "--cw-fg": "#ecfccb",
+      "--cw-mute": "#86efac",
+      "--cw-accent": "#bef264"
+    }
+  },
+  {
+    id: "sunset",
+    label: "Sunset",
+    swatches: ["#1a0f1f", "#fef3c7", "#fcd34d", "#fb7185"],
+    vars: {
+      "--cw-bg": "#1a0f1f",
+      "--cw-fg": "#fef3c7",
+      "--cw-mute": "#fcd34d",
+      "--cw-accent": "#fb7185"
+    }
+  }
+];
+function findPreset(id) {
+  return PRESETS.find((p) => p.id === id);
+}
 
-import { PRESETS, findPreset } from "./presets.js";
-
-export const manifest = {
+// src/index.js
+var manifest = {
   id: "palette-swap",
   name: "Palette Swap",
   version: "0.1.4",
   description: "Non-destructive theme override. Toggle on/off; switch presets without losing the composition's source colors.",
-  icon: "🎨",
+  icon: "\u{1F3A8}",
   surfaces: ["composition-decorators", "settings"],
-  permissions: [],
+  permissions: []
 };
-
-export async function onActivate(wb) {
-  // Track the active id locally for the decorator. Initialise from
-  // storage; subscribe so settings UI changes apply immediately.
+async function onActivate(wb) {
   let activeId = wb.storage.get("active") ?? null;
-
-  // Register a render decorator that prepends a :root style block when
-  // a preset is active. Priority 100 — runs late so we win against
-  // earlier decorators that might set their own :root vars.
   wb.composition.addRenderDecorator({
     priority: 100,
     transform(html) {
       const preset = activeId ? findPreset(activeId) : null;
       if (!preset) return html;
-
-      // Path 1: inject :root vars so opt-in compositions
-      // (`var(--cw-bg, ...)`) get precise per-slot control.
-      const cssDecls = Object.entries(preset.vars)
-        .map(([k, v]) => `  ${k}: ${v};`)
-        .join("\n");
-      const rootBlock = `<style data-palette-swap="${preset.id}">\n:root {\n${cssDecls}\n}\n</style>\n`;
-
-      // Path 2: auto-remap hard-coded hex colors inside every <style>
-      // block so compositions that DON'T use the cw-* vars still
-      // recolor on install. Each unique hex is classified by HSL
-      // (dark→bg, light→fg, saturated→accent, neutral→mute) and
-      // replaced with the matching preset value.
+      const cssDecls = Object.entries(preset.vars).map(([k, v]) => `  ${k}: ${v};`).join("\n");
+      const rootBlock = `<style data-palette-swap="${preset.id}">
+:root {
+${cssDecls}
+}
+</style>
+`;
       const remapped = remapStyleBlocks(html, preset);
-
       return rootBlock + remapped;
-    },
+    }
   });
-
-  // Settings section — imperative DOM (plugins ship plain JS, no
-  // Svelte build chain). Emits a styled card matching the host's
-  // existing settings panel idiom.
   wb.settings.addSection({
     label: "Palette",
     mount(root) {
@@ -76,7 +125,7 @@ export async function onActivate(wb) {
             </button>
           </header>
           <p class="ps-hint">
-            Non-destructive overlay — the composition's original colors
+            Non-destructive overlay \u2014 the composition's original colors
             are preserved. Toggle off to revert; switch presets at any
             time without losing the source.
           </p>
@@ -172,20 +221,13 @@ export async function onActivate(wb) {
           }
         </style>
       `;
-
-      const grid       = root.querySelector(".ps-grid");
-      const toggleBtn  = root.querySelector(".ps-toggle");
-      const stateVal   = root.querySelector(".ps-state-val");
-
-      // Remember the last selected preset so toggling override back
-      // ON restores the user's previous choice without forcing them
-      // to pick again. Persisted via wb.storage so it round-trips
-      // through reloads.
+      const grid = root.querySelector(".ps-grid");
+      const toggleBtn = root.querySelector(".ps-toggle");
+      const stateVal = root.querySelector(".ps-state-val");
       let lastPresetId = wb.storage.get("lastPreset") ?? activeId ?? PRESETS[0].id;
-
       function setOverrideOn() {
         toggleBtn.setAttribute("aria-checked", "true");
-        stateVal.textContent = `on · ${findPreset(activeId)?.label ?? activeId}`;
+        stateVal.textContent = `on \xB7 ${findPreset(activeId)?.label ?? activeId}`;
         stateVal.classList.remove("ps-state-val-off");
         grid.classList.remove("ps-disabled");
       }
@@ -195,7 +237,6 @@ export async function onActivate(wb) {
         stateVal.classList.add("ps-state-val-off");
         grid.classList.add("ps-disabled");
       }
-
       async function setPreset(id) {
         activeId = id;
         await wb.storage.set("active", id);
@@ -212,7 +253,6 @@ export async function onActivate(wb) {
         renderGrid();
         await wb.composition.repaint();
       }
-
       function renderGrid() {
         grid.innerHTML = "";
         for (const p of PRESETS) {
@@ -232,73 +272,51 @@ export async function onActivate(wb) {
           grid.appendChild(card);
         }
       }
-
       toggleBtn.addEventListener("click", () => {
         if (activeId) clearPreset();
         else setPreset(lastPresetId);
       });
-
-      // Initial state — match whatever was stored.
       if (activeId) setOverrideOn();
-      else          setOverrideOff();
+      else setOverrideOff();
       renderGrid();
-
-      // Cleanup: drop our DOM. Listeners die with the nodes.
-      return () => { root.innerHTML = ""; };
-    },
+      return () => {
+        root.innerHTML = "";
+      };
+    }
   });
-
-  // If a palette was previously selected (we're hydrating from a saved
-  // workbook), trigger an iframe rebuild so the decorator's output
-  // shows up. Without this, the iframe mounts before the decorator
-  // registers and ignores the new vars until the user pokes anything.
   if (activeId) {
     queueMicrotask(() => wb.composition.repaint());
   }
-
   wb.log(`palette-swap activated (${PRESETS.length} presets, active=${activeId ?? "none"})`);
 }
-
 function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
-
-// ── color remapping ────────────────────────────────────────────────
-// Scans <style> blocks for hex colors, classifies each by HSL into a
-// palette slot, and replaces it with that slot's preset value. We also
-// remap a small set of named CSS colors for convenience. Anything that
-// can't be classified (rgb()/hsl()/oklch()/var()/keywords like inherit)
-// is left untouched — better to under-recolor than to mangle.
-
-const NAMED_COLORS = {
-  black: "#000000", white: "#ffffff",
-  red: "#ff0000", green: "#008000", blue: "#0000ff",
-  yellow: "#ffff00", orange: "#ffa500", purple: "#800080",
-  gray: "#808080", grey: "#808080", silver: "#c0c0c0",
-  pink: "#ffc0cb", brown: "#a52a2a",
+var NAMED_COLORS = {
+  black: "#000000",
+  white: "#ffffff",
+  red: "#ff0000",
+  green: "#008000",
+  blue: "#0000ff",
+  yellow: "#ffff00",
+  orange: "#ffa500",
+  purple: "#800080",
+  gray: "#808080",
+  grey: "#808080",
+  silver: "#c0c0c0",
+  pink: "#ffc0cb",
+  brown: "#a52a2a"
 };
-
 function remapStyleBlocks(html, preset) {
   return html.replace(/(<style[^>]*>)([\s\S]*?)(<\/style>)/gi, (full, open, css, close) => {
     return open + remapCss(css, preset) + close;
   });
 }
-
 function remapCss(css, preset) {
-  // Replace hex literals (#rgb, #rgba, #rrggbb, #rrggbbaa).
   let out = css.replace(/#[0-9a-fA-F]{3,8}\b/g, (hex) => {
     const slot = classifyHex(hex);
     return slot ? preset.vars["--cw-" + slot] : hex;
   });
-  // Replace bare named colors when used as a value (preceded by `:` or
-  // `,` or whitespace, followed by `;` or `}` or whitespace). Keeps
-  // conservative matching so we don't touch `border-color: red red red`
-  // edge cases worse than necessary.
   for (const [name, hex] of Object.entries(NAMED_COLORS)) {
     const re = new RegExp(`(?<![a-zA-Z0-9_-])${name}(?![a-zA-Z0-9_-])`, "g");
     out = out.replace(re, () => {
@@ -308,23 +326,20 @@ function remapCss(css, preset) {
   }
   return out;
 }
-
 function classifyHex(hex) {
   const rgb = hexToRgb(hex);
   if (!rgb) return null;
   const [h, s, l] = rgbToHsl(...rgb);
-  // Order matters — lightness extremes win first, then saturation.
-  if (l < 0.20) return "bg";       // near-black
-  if (l > 0.85) return "fg";       // near-white
-  if (s > 0.30) return "accent";   // saturated mid-tone
-  return "mute";                   // desaturated mid-tone
+  if (l < 0.2) return "bg";
+  if (l > 0.85) return "fg";
+  if (s > 0.3) return "accent";
+  return "mute";
 }
-
 function hexToRgb(hex) {
   let h = hex.replace("#", "");
   if (h.length === 3) h = h.split("").map((c) => c + c).join("");
   if (h.length === 4) h = h.split("").map((c) => c + c).join("");
-  if (h.length === 8) h = h.slice(0, 6); // strip alpha
+  if (h.length === 8) h = h.slice(0, 6);
   if (h.length !== 6) return null;
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
@@ -332,7 +347,6 @@ function hexToRgb(hex) {
   if ([r, g, b].some(Number.isNaN)) return null;
   return [r / 255, g / 255, b / 255];
 }
-
 function rgbToHsl(r, g, b) {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -347,3 +361,7 @@ function rgbToHsl(r, g, b) {
   }
   return [h, s, l];
 }
+export {
+  manifest,
+  onActivate
+};

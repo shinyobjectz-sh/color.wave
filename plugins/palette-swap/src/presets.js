@@ -74,6 +74,17 @@ export const PRESETS = [
       "--cw-accent": "#bef264",
     },
   },
+  {
+    id: "sunset",
+    label: "Sunset",
+    swatches: ["#1a0f1f", "#fef3c7", "#fcd34d", "#fb7185"],
+    vars: {
+      "--cw-bg":     "#1a0f1f",
+      "--cw-fg":     "#fef3c7",
+      "--cw-mute":   "#fcd34d",
+      "--cw-accent": "#fb7185",
+    },
+  },
 ];
 
 export function findPreset(id) {
