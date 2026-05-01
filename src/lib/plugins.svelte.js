@@ -76,13 +76,28 @@ class PluginsStore {
     const doc = getDoc();
     if (!doc) return;
     const list = doc.getList(PLUGINS_LIST);
-    const out = [];
+    const raw = [];
     for (const v of list.toArray()) {
       if (typeof v !== "string") continue;
-      try { out.push(JSON.parse(v)); } catch { /* skip */ }
+      try { raw.push(JSON.parse(v)); } catch { /* skip */ }
     }
+    // Dedupe on hydration — last-write-wins per id. Prior bugs (or
+    // a corrupted Loro list) could have left duplicate entries with
+    // the same id; collapse them on read so the rest of the app
+    // never has to handle duplicates.
+    const seen = new Map();
+    for (const p of raw) {
+      if (!p?.id) continue;
+      seen.set(p.id, p);
+    }
+    const out = [...seen.values()];
+    const hadDupes = out.length !== raw.length;
     this.items = out;
     this.hydrated = true;
+    if (hadDupes) {
+      console.warn(`[plugins] hydrate dropped ${raw.length - out.length} duplicate entries; persisting clean state`);
+      this._persist();
+    }
 
     // Auto-activate every enabled plugin on mount. Errors are
     // recorded on the record so the UI can surface them.
@@ -161,9 +176,10 @@ class PluginsStore {
         config,
       };
 
-      const next = this.items.slice();
-      if (existingIdx >= 0) next[existingIdx] = record;
-      else next.push(record);
+      // Filter-then-push ensures exactly one entry per id, even if
+      // a prior bug or doc-level corruption left duplicates.
+      const next = this.items.filter((p) => p.id !== manifest.id);
+      next.push(record);
       this.items = next;
       await this._persist();
 
@@ -230,9 +246,9 @@ class PluginsStore {
         config,
       };
 
-      const next = this.items.slice();
-      if (existingIdx >= 0) next[existingIdx] = record;
-      else next.push(record);
+      // Same dedupe pattern as install() — one entry per id.
+      const next = this.items.filter((p) => p.id !== manifest.id);
+      next.push(record);
       this.items = next;
       await this._persist();
 
@@ -243,14 +259,38 @@ class PluginsStore {
     }
   }
 
-  /** Re-fetch a plugin's source URL and replace the embedded bytes. */
+  /** Update = full remove + fresh install. Cleaner than in-place
+   *  replace: deactivates the running instance, drops the entry,
+   *  fetches the latest source from the registry, installs fresh.
+   *  Config and enabled state are preserved across the cycle.
+   *
+   *  Prefers registry.latest.url over the install-time URL (which is
+   *  typically version-pinned, e.g. palette-swap-v0.1.2.js — re-
+   *  fetching it would return the same version forever). Falls
+   *  through to source.url for plugins not in any registry. */
   async update(id) {
-    const record = this.items.find((p) => p.id === id);
-    if (!record) throw new Error(`plugin not installed: ${id}`);
-    if (record.source?.kind !== "url-cached" || !record.source.url) {
+    const existing = this.items.find((p) => p.id === id);
+    if (!existing) throw new Error(`plugin not installed: ${id}`);
+    const registryEntry = this.registry.entries.find((e) => e.id === id);
+    const url = registryEntry?.latest?.url ?? existing.source?.url;
+    if (!url) {
       throw new Error(`plugin '${id}' has no update URL (was installed inline?)`);
     }
-    return this.install(record.source.url, { enable: record.enabled });
+    // Snapshot the parts we want to carry across the cycle.
+    const wasEnabled  = existing.enabled;
+    const savedConfig = existing.config ?? {};
+
+    // Step 1: full remove — deactivates + drops the record entirely.
+    await this.remove(id);
+
+    // Step 2: fresh install from the latest URL.
+    const fresh = await this.install(url, { enable: wasEnabled });
+
+    // Step 3: restore plugin's config (storage round-trip).
+    if (Object.keys(savedConfig).length > 0) {
+      await this.setConfig(id, savedConfig);
+    }
+    return fresh;
   }
 
   /** Remove a plugin. Deactivates first; persists the empty slot. */
@@ -350,16 +390,30 @@ class PluginsStore {
 
   // ── activation ──────────────────────────────────────────────────
 
+  // In-flight activations so concurrent calls dedupe. Without this,
+  // parallel _activate(id) calls all pass the _instances.has() check
+  // (which only becomes truthy AFTER the awaited onActivate resolves),
+  // each runs the plugin's onActivate, and each registers a section /
+  // decorator → duplicate-key Svelte crash.
+  _activating = new Map(); // id → in-flight promise
+
   async _activate(record) {
     if (this._instances.has(record.id)) return;
-    if (!record.source?.code) throw new Error(`plugin '${record.id}' has no source code`);
-    const mod = await loadModuleFromCode(record.source.code);
-    if (typeof mod?.onActivate !== "function") {
-      throw new Error(`plugin '${record.id}' has no onActivate function`);
-    }
-    const api = createPluginApi(record.id, this);
-    await mod.onActivate(api);
-    this._instances.set(record.id, { api, deactivate: mod.onDeactivate });
+    const inflight = this._activating.get(record.id);
+    if (inflight) return inflight;
+    const promise = (async () => {
+      if (!record.source?.code) throw new Error(`plugin '${record.id}' has no source code`);
+      const mod = await loadModuleFromCode(record.source.code);
+      if (typeof mod?.onActivate !== "function") {
+        throw new Error(`plugin '${record.id}' has no onActivate function`);
+      }
+      const api = createPluginApi(record.id, this);
+      await mod.onActivate(api);
+      this._instances.set(record.id, { api, deactivate: mod.onDeactivate });
+    })();
+    this._activating.set(record.id, promise);
+    try { await promise; }
+    finally { this._activating.delete(record.id); }
   }
 
   async _deactivate(id) {
