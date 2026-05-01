@@ -235,12 +235,14 @@ class CompositionStore {
    * script is appended. Decorators that throw are skipped with a
    * console warn — a buggy plugin shouldn't break the player. */
   buildSrcdoc() {
-    // Read revision so any caller wrapping this in $derived/$effect
-    // tracks it as a reactive dep. wb.composition.repaint() bumps
-    // revision when a plugin's internal closure state changes
-    // (palette-swap switches preset) — without this read the cached
-    // $derived stays valid and the iframe remounts with stale srcdoc.
-    void this.revision;
+    // Read revision INTO THE OUTPUT (data-rev attr) so:
+    //  1. Svelte $derived/$effect callers track it as a reactive dep
+    //  2. Terser can't dead-code-eliminate the read — `pure_getters: true`
+    //     made `void this.revision` look pure and dropped the line in
+    //     minified builds, breaking the entire repaint pipeline.
+    // Embedding the value in the template literal keeps the read live
+    // even under aggressive minification.
+    const rev = this.revision;
     let body = this.html;
     for (const dec of compositionDecorators) {
       try {
@@ -250,7 +252,7 @@ class CompositionStore {
         console.warn(`composition decorator from ${dec.pluginId} threw:`, e);
       }
     }
-    return `<!DOCTYPE html><html><body>${body}\n${IFRAME_RUNTIME}</body></html>`;
+    return `<!DOCTYPE html><html><body data-rev="${rev}">${body}\n${IFRAME_RUNTIME}</body></html>`;
   }
 
   /** Replace the entire composition; the player remounts.
