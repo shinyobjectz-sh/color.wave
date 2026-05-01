@@ -47,6 +47,11 @@ class LayoutStore {
   // Persisted state — round-trips through Y.Doc → substrate WAL →
   // .workbook.html file. Defaults are seeded only if the underlying
   // Y.Map is empty after hydration; existing user state always wins.
+  //
+  // wb.app() is lazy: the Proxy returned here defers SyncedStore
+  // creation until the first read/write, so it's safe to call this
+  // at module load even though singlefile bundling runs us before
+  // main.js's runtime mount.
   #state = app({
     chatWidth:      500,
     timelineHeight: 240,
