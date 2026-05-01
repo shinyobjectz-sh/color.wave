@@ -19,33 +19,12 @@
   import { onMount } from "svelte";
   import logoUrl from "../logo.svg";
   import pkg from "../../package.json";
-  import { autoSave } from "../lib/autoSave.svelte.js";
 
   const APP_VERSION: string = (pkg as { version: string }).version;
 
-  // Substrate transport status — three-state indicator:
-  //   ● saved-in-file     work is in the file
-  //   ○ needs-permission  click to grant FSA / install PWA
-  //   ◐ download-to-keep  T4 — click to download
-  //   ⌀ read-only         no transport available
-  const STATUS_GLYPHS = {
-    "saved-in-file": "●",
-    "needs-permission": "○",
-    "download-to-keep": "◐",
-    "read-only": "⌀",
-  } as const;
-  const STATUS_LABELS = {
-    "saved-in-file": "Saved in this file",
-    "needs-permission": "Allow saving to this file",
-    "download-to-keep": "Download to keep changes",
-    "read-only": "This browser cannot save changes",
-  } as const;
-
-  // Status pill is non-interactive — autosave fires on every change,
-  // and explicit save is on Cmd+S / File → Save. Was previously a
-  // click-to-save button, but the click was a third path duplicating
-  // the keybind + menu item. Kept the visual treatment (color +
-  // glyph) since it's a useful at-a-glance state indicator.
+  // Save status display lives elsewhere now: errors surface via the
+  // autosave toast (see autoSave.svelte.js → showAutoSaveToast).
+  // Healthy state is invisible — that's the whole point of autosave.
 
   type MenuItem =
     | { kind: "item"; label: string; accel?: string; onSelect: () => void; disabled?: boolean }
@@ -165,19 +144,6 @@
     <img src={logoUrl} alt="" />
   </div>
   <span class="mb-version" aria-label={`version ${APP_VERSION}`}>v{APP_VERSION}</span>
-  <span
-    class="mb-substrate-status"
-    class:status-saved={autoSave.status === "saved-in-file"}
-    class:status-needs={autoSave.status === "needs-permission"}
-    class:status-download={autoSave.status === "download-to-keep"}
-    class:status-readonly={autoSave.status === "read-only"}
-    role="status"
-    aria-label={STATUS_LABELS[autoSave.status] ?? "save status"}
-    title={STATUS_LABELS[autoSave.status] ?? "save status"}
-  >
-    <span class="dot">{STATUS_GLYPHS[autoSave.status] ?? "·"}</span>
-    <span class="text">{STATUS_LABELS[autoSave.status] ?? ""}</span>
-  </span>
   {#each menus as m (m.label)}
     <div class="mb-slot">
       <button
@@ -240,36 +206,6 @@
     letter-spacing: 0.02em;
     user-select: none;
     pointer-events: none;
-  }
-  .mb-substrate-status {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 0 8px;
-    height: 22px;
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--color-fg-muted);
-    align-self: center;
-    white-space: nowrap;
-    user-select: none;
-  }
-  .mb-substrate-status .dot {
-    font-size: 11px;
-    line-height: 1;
-  }
-  .mb-substrate-status .text {
-    opacity: 0.65;
-    letter-spacing: 0.01em;
-  }
-  .mb-substrate-status.status-saved {
-    color: var(--color-fg-faint);
-  }
-  .mb-substrate-status.status-needs .dot,
-  .mb-substrate-status.status-download .dot {
-    color: var(--color-accent);
-  }
-  .mb-substrate-status.status-readonly {
-    opacity: 0.4;
   }
   .mb-slot { position: relative; display: flex; }
   .mb-trigger {

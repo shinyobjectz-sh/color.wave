@@ -55,7 +55,7 @@ class AutoSaveStore {
           showAutoSaveToast("saved");
         } else if (result.kind === "queued") {
           // T4 path — surface the download CTA
-          showAutoSaveToast(result.reason ?? "queued — click status pill to download");
+          showAutoSaveToast(result.reason ?? "queued — File → Save to download");
         } else if (result.kind === "fingerprint-mismatch") {
           this.errorMessage = "file changed externally; reload";
           showAutoSaveToast("file changed externally — reload to merge");

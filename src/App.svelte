@@ -144,21 +144,6 @@
 
     <span class="flex-1"></span>
 
-    <span
-      class="font-mono text-[10px] tabular-nums px-2 py-0.5 rounded-full border self-center"
-      class:text-accent={autoSave.status === "saved"}
-      class:border-accent={autoSave.status === "saved"}
-      class:text-fg-muted={autoSave.status !== "saved" && autoSave.status !== "error"}
-      class:border-border={autoSave.status !== "saved" && autoSave.status !== "error"}
-      class:text-rose-300={autoSave.status === "error"}
-      class:border-rose-800={autoSave.status === "error"}
-      title={autoSave.status === "error"
-        ? `Auto-save error: ${autoSave.errorMessage}`
-        : "Saves automatically to local storage on every change"}
-    >
-      {#if autoSave.status === "saved"}● saved{:else if autoSave.status === "saving"}↻ saving…{:else if autoSave.status === "pending"}● pending{:else if autoSave.status === "error"}⚠ {autoSave.errorMessage}{:else}○ saved{/if}
-    </span>
-
     <span class="font-mono text-[10px] tabular-nums px-2 py-0.5 rounded-full border self-center"
           class:text-accent={env.satisfied}
           class:border-accent={env.satisfied}
