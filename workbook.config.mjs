@@ -9,6 +9,11 @@ export default {
   name: "color.wave",
   slug: "colorwave",
   type: "spa",
+  // SPA-shape workbook — no Polars / Plotters / Rhai / Arrow needed.
+  // The "app" wasm variant is ~140 KB vs default ~16 MB; drops total
+  // workbook size by ~15 MB without losing anything colorwave uses.
+  // wb.* + Yjs are pure JS and unaffected by the variant choice.
+  wasmVariant: "app",
   version: "0.1",
   entry: "src/index.html",
   vite: {
