@@ -12,7 +12,7 @@
   "homepage": "https://github.com/shinyobjectz-sh/color.wave",
   "scripts": {
     "dev": "workbook dev",
-    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html"
+    "build": "workbook build"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",
