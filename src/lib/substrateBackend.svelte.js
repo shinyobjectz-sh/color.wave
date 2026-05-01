@@ -25,6 +25,7 @@ import {
   shouldCompact,
   cidOf,
 } from "@work.books/substrate";
+import { markDocHydrated } from "@work.books/runtime/storage";
 import { bootstrapYjs, getDoc } from "./yjsBackend.svelte.js";
 
 const DEBOUNCE_MS = 250;
@@ -83,6 +84,12 @@ class WbSubstrate {
       }
     }
     this._docHydrated = true;
+    // Signal seed-on-empty primitives (wb.text, etc.) that the
+    // saved state has landed. Anyone awaiting hydration unblocks
+    // here. Without this, wb.text("composition", { initial }) would
+    // see an empty Y.Text before WAL apply and seed a duplicate
+    // copy on top of the restored state.
+    markDocHydrated(null);
 
     // 4. Pick a transport. Negotiator detects PWA / FSA / OPFS / nothing.
     const { transport } = await negotiate({
