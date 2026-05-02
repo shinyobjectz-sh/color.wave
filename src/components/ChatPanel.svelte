@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import ToolStep from "./ToolStep.svelte";
+  import PermissionRequest from "./PermissionRequest.svelte";
   import { agent } from "../lib/agent.svelte.js";
   import { env } from "../lib/env.svelte.js";
   import {
@@ -99,6 +100,12 @@
         title="Start a fresh thread (clears chat history; the composition + assets stay)"
       >+ new thread</button>
     {/if}
+    {#if agent.provider !== "builtin"}
+      <div class="absolute top-2 left-3 z-10 px-2 py-0.5 rounded font-mono text-[10px] text-accent border border-accent/40 bg-accent/5"
+           title={`Chat is running through your ${agent.provider === "claude" ? "Claude Code" : "Codex CLI"} subscription via ACP. Switch back in Manage → Agents.`}>
+        ● {agent.provider === "claude" ? "Claude Code" : "Codex"}
+      </div>
+    {/if}
 
     {#if !agent.thread.length && !agent.streaming}
       <div class="text-fg-muted text-sm px-1">
@@ -137,6 +144,12 @@
         </div>
       {/if}
     {/each}
+
+    <!-- Pending ACP permission requests (claude/codex asking to run
+         a Bash command, write outside the seeded scratch dir, etc.).
+         Renders zero or more inline cards between the last turn and
+         the streaming bubble. Built-in agent doesn't fire these. -->
+    <PermissionRequest />
 
     {#if agent.streaming}
       <div class="agent-turn space-y-2 px-1">

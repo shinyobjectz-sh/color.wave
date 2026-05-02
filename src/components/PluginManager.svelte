@@ -1,107 +1,95 @@
 <script>
   /**
-   * Plugins Manager.
+   * Plugins Manager — Browse + Installed tabs.
    *
-   * Two tabs:
-   *   • Browse   — auto-fetched from the default registry (shinyobjectz-sh/color-wave-plugins).
-   *                One-click install; "update available" badge when a newer version ships.
-   *   • Installed — current plugins with toggle, update, remove.
+   * Browse: registry-fetched cards. One CTA per card (install / update /
+   * up-to-date). Click a card to expand for details (description,
+   * surfaces, permissions, version, author).
    *
-   * Custom-source install (URL / local file) is tucked behind an
-   * advanced disclosure at the bottom of the Installed tab — most
-   * users should never need it.
+   * Installed: enabled-toggle + name + version up front; expand for the
+   * full metadata + remove/update actions.
    *
-   * The registry is fetched once per session on first open; manual
-   * refresh button forces a re-fetch.
+   * Custom-source install (URL / local file) is tucked into a small
+   * disclosure at the bottom of Installed — most users never need it.
    */
   import { plugins } from "../lib/plugins.svelte.js";
+  import Scrollbox from "./Scrollbox.svelte";
 
   let { open = $bindable(false) } = $props();
 
-  let tab = $state("browse"); // "browse" | "installed"
+  let dialogEl;
+  let tab = $state(/** @type {"browse" | "installed"} */ ("browse"));
+  let expanded = $state(/** @type {Record<string, boolean>} */ ({}));
   let url = $state("");
   let error = $state("");
   let success = $state("");
   let fileInputEl;
 
-  // Auto-load the registry the first time this modal opens. Cheap
-  // (single small JSON fetch) and idempotent — `loadRegistry()`
-  // returns the cached entries on subsequent calls.
+  // Auto-load registry on first open. loadRegistry caches; idempotent.
   let _autoloaded = false;
   $effect(() => {
     if (open && !_autoloaded) {
       _autoloaded = true;
       plugins.loadRegistry().catch(() => { /* surfaced via plugins.registry.error */ });
     }
+    if (!dialogEl) return;
+    if (open && !dialogEl.open) dialogEl.showModal();
+    if (!open && dialogEl.open) dialogEl.close();
   });
 
-  // Quick lookup of installed entries by id — lets the Browse tab
-  // show "installed" / "update available" badges without scanning.
+  function close() { open = false; }
+  function onKeydown(e) { if (e.key === "Escape") close(); }
+
   let installedById = $derived(new Map(plugins.items.map((p) => [p.id, p])));
 
+  function flashSuccess(msg) {
+    success = msg;
+    setTimeout(() => { if (success === msg) success = ""; }, 2200);
+  }
+  function clearMsg() { error = ""; success = ""; }
+
   async function onInstallFromRegistry(entryId) {
-    error = ""; success = "";
+    clearMsg();
     try {
       const e = await plugins.installFromRegistry(entryId);
-      success = `installed ${e.name} v${e.version}`;
-      setTimeout(() => { success = ""; }, 2200);
-    } catch (e) {
-      error = e?.message ?? String(e);
-    }
+      flashSuccess(`Installed ${e.name} v${e.version}`);
+    } catch (e) { error = e?.message ?? String(e); }
   }
-
   async function onInstallFromUrl() {
-    error = ""; success = "";
+    clearMsg();
     try {
       const e = await plugins.install(url.trim());
-      success = `installed ${e.name}${e.version ? ` v${e.version}` : ""}`;
+      flashSuccess(`Installed ${e.name}${e.version ? ` v${e.version}` : ""}`);
       url = "";
-      setTimeout(() => { success = ""; }, 2200);
-    } catch (e) {
-      error = e?.message ?? String(e);
-    }
+    } catch (e) { error = e?.message ?? String(e); }
   }
-  function onKey(ev) { if (ev.key === "Enter") onInstallFromUrl(); }
-
   async function onPickFile(ev) {
-    error = ""; success = "";
+    clearMsg();
     const file = ev.target.files?.[0];
     ev.target.value = "";
     if (!file) return;
     try {
       const code = await file.text();
       const e = await plugins.installFromCode(code, { sourceLabel: file.name });
-      success = `installed ${e.name}${e.version ? ` v${e.version}` : ""} (from file)`;
-      setTimeout(() => { success = ""; }, 2200);
-    } catch (e) {
-      error = e?.message ?? String(e);
-    }
+      flashSuccess(`Installed ${e.name}${e.version ? ` v${e.version}` : ""}`);
+    } catch (e) { error = e?.message ?? String(e); }
   }
-
   async function onUpdate(id) {
-    error = ""; success = "";
+    clearMsg();
     try {
       const e = await plugins.update(id);
-      success = `updated ${e.name} → v${e.version}`;
-      setTimeout(() => { success = ""; }, 2200);
-    } catch (e) {
-      error = e?.message ?? String(e);
-    }
+      flashSuccess(`Updated ${e.name} → v${e.version}`);
+    } catch (e) { error = e?.message ?? String(e); }
   }
   async function onToggle(id, ev) {
-    error = "";
-    try {
-      await plugins.setEnabled(id, ev.currentTarget.checked);
-    } catch (e) {
-      error = e?.message ?? String(e);
-    }
+    await plugins.toggle(id, ev.target.checked);
   }
   async function onRemove(id) {
-    if (!confirm(`Remove plugin '${id}'? Its embedded bytes are deleted; reinstall from the registry or URL to recover.`)) return;
+    if (!confirm(`Remove plugin '${id}'? Reinstall to recover.`)) return;
     await plugins.remove(id);
   }
   async function onRefreshRegistry() {
-    error = "";
+    clearMsg();
     try { await plugins.loadRegistry({ force: true }); }
     catch (e) { error = e?.message ?? String(e); }
   }
@@ -116,444 +104,287 @@
   }
 </script>
 
-{#if open}
-  <div class="modal-overlay" onclick={() => open = false}>
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <header class="modal-head">
-        <h2 class="font-mono text-[12px] font-semibold uppercase tracking-widest text-fg-muted">Plugins</h2>
-        <button class="modal-close" onclick={() => open = false} aria-label="Close">×</button>
-      </header>
-
-      <nav class="tabs" role="tablist">
-        <button
-          class="tab" class:active={tab === "browse"}
-          onclick={() => tab = "browse"}
-          role="tab" aria-selected={tab === "browse"}
-        >
-          Browse
-          {#if plugins.registry.status === "loaded"}
-            <span class="tab-count">{plugins.registry.entries.length}</span>
-          {/if}
-        </button>
-        <button
-          class="tab" class:active={tab === "installed"}
-          onclick={() => tab = "installed"}
-          role="tab" aria-selected={tab === "installed"}
-        >
-          Installed
-          {#if plugins.items.length > 0}
-            <span class="tab-count">{plugins.items.length}</span>
-          {/if}
-        </button>
-      </nav>
-
-      <div class="modal-body">
-        {#if error}<div class="msg msg-err">{error}</div>{/if}
-        {#if success}<div class="msg msg-ok">{success}</div>{/if}
-
-        {#if tab === "browse"}
-          <div class="browse-head">
-            <p class="text-fg-muted font-mono text-[11px] leading-relaxed">
-              Plugins from the default registry. Click install — bytes
-              get embedded in this workbook so they keep working when
-              the file is shared.
-            </p>
-            <button
-              class="ghost"
-              onclick={onRefreshRegistry}
-              disabled={plugins.registry.status === "loading"}
-              title="Re-fetch the registry"
-            >
-              {plugins.registry.status === "loading" ? "loading…" : "refresh"}
-            </button>
-          </div>
-
-          {#if plugins.registry.status === "loading" && plugins.registry.entries.length === 0}
-            <p class="font-mono text-[10px] text-fg-faint mt-3">loading catalog…</p>
-          {:else if plugins.registry.status === "error"}
-            <div class="msg msg-err mt-3">
-              couldn't load registry: {plugins.registry.error}
-            </div>
-          {:else if plugins.registry.entries.length === 0}
-            <p class="font-mono text-[10px] text-fg-faint mt-3">
-              the registry is empty for now — check back later, or use the advanced installer below to load from a custom URL.
-            </p>
-          {:else}
-            <ul class="plugin-list">
-              {#each plugins.registry.entries as e (e.id)}
-                {@const installed = installedById.get(e.id)}
-                {@const update = installed ? plugins.getRegistryUpdate(e.id) : null}
-                <li class="plugin-row">
-                  <div class="browse-icon">
-                    {#if e.icon}<span class="plugin-icon-lg">{e.icon}</span>{/if}
-                  </div>
-
-                  <div class="plugin-meta">
-                    <div class="plugin-head">
-                      <code class="plugin-name">{e.name}</code>
-                      <span class="plugin-version">v{e.latest?.version}</span>
-                      {#if installed && !update}<span class="badge badge-ok">installed</span>{/if}
-                      {#if update}<span class="badge badge-update">update → v{update.version}</span>{/if}
-                    </div>
-                    {#if e.description}<div class="plugin-desc">{e.description}</div>{/if}
-                    <div class="plugin-aux">
-                      {#if e.author}<span>by {e.author}</span>{/if}
-                      {#if e.surfaces?.length}<span>surfaces: {e.surfaces.join(", ")}</span>{/if}
-                      {#if e.permissions?.length}<span>permissions: {e.permissions.join(", ")}</span>{/if}
-                    </div>
-                  </div>
-
-                  <div class="plugin-actions">
-                    {#if !installed}
-                      <button
-                        class="primary"
-                        onclick={() => onInstallFromRegistry(e.id)}
-                        disabled={plugins.busy}
-                      >install</button>
-                    {:else if update}
-                      <button
-                        class="primary"
-                        onclick={() => onUpdate(e.id)}
-                        disabled={plugins.busy}
-                        title={`update from v${installed.version} to v${update.version}`}
-                      >update</button>
-                    {:else}
-                      <button disabled title="already on latest">up to date</button>
-                    {/if}
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        {:else}
-          <!-- Installed tab -->
-          {#if plugins.items.length === 0}
-            <p class="font-mono text-[11px] text-fg-faint">no plugins installed yet — head to the Browse tab.</p>
-          {:else}
-            <ul class="plugin-list">
-              {#each plugins.items as p, idx (p.id)}
-                {@const update = plugins.getRegistryUpdate(p.id)}
-                <li class="plugin-row plugin-row-installed">
-                  <div class="plugin-order">
-                    <button
-                      class="order-btn"
-                      onclick={() => plugins.move(p.id, -1)}
-                      disabled={idx === 0 || plugins.busy}
-                      title="Move up"
-                      aria-label="Move up"
-                    >▲</button>
-                    <button
-                      class="order-btn"
-                      onclick={() => plugins.move(p.id, +1)}
-                      disabled={idx === plugins.items.length - 1 || plugins.busy}
-                      title="Move down"
-                      aria-label="Move down"
-                    >▼</button>
-                  </div>
-
-                  <label class="plugin-toggle" title="{p.enabled ? 'enabled — click to disable' : 'disabled — click to enable'}">
-                    <input
-                      type="checkbox"
-                      checked={p.enabled}
-                      onchange={(ev) => onToggle(p.id, ev)}
-                    />
-                    <span class="track"></span>
-                  </label>
-
-                  <div class="plugin-meta">
-                    <div class="plugin-head">
-                      {#if p.icon}<span class="plugin-icon">{p.icon}</span>{/if}
-                      <code class="plugin-name">{p.name}</code>
-                      {#if p.version}<span class="plugin-version">v{p.version}</span>{/if}
-                      {#if update}<span class="badge badge-update">update → v{update.version}</span>{/if}
-                    </div>
-                    {#if p.description}<div class="plugin-desc">{p.description}</div>{/if}
-                    <div class="plugin-aux">
-                      {#if p.surfaces?.length}<span>surfaces: {p.surfaces.join(", ")}</span>{/if}
-                      {#if p.permissions?.length}<span>permissions: {p.permissions.join(", ")}</span>{/if}
-                      <span title={`installed ${fmtAge(p.installedAt)}`}>updated {fmtAge(p.updatedAt)}</span>
-                    </div>
-                    {#if p.source?.url}<code class="plugin-url">{p.source.url}</code>{/if}
-                  </div>
-
-                  <div class="plugin-actions">
-                    <button onclick={() => onUpdate(p.id)} disabled={plugins.busy || !p.source?.url} title="Re-fetch source URL and replace embedded bytes">update</button>
-                    <button onclick={() => onRemove(p.id)} class="danger" title="Uninstall">remove</button>
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-
-          <details class="advanced">
-            <summary>Install from custom source (advanced)</summary>
-            <p class="text-fg-muted font-mono text-[10px] leading-relaxed my-2">
-              Install a plugin not in the registry by pasting a URL or
-              uploading a local <code>.js</code> file. Bytes are
-              embedded in the workbook just like registry installs.
-            </p>
-            <div class="install-row">
-              <input
-                type="url"
-                placeholder="https://raw.githubusercontent.com/.../plugin.js"
-                bind:value={url}
-                onkeydown={onKey}
-                disabled={plugins.busy}
-              />
-              <button
-                onclick={onInstallFromUrl}
-                disabled={plugins.busy || !url.trim()}
-              >
-                {plugins.busy ? "installing…" : "install"}
-              </button>
-            </div>
-            <div class="file-row">
-              <span>or pick a local file:</span>
-              <input
-                type="file"
-                accept=".js,.mjs,application/javascript,text/javascript"
-                bind:this={fileInputEl}
-                onchange={onPickFile}
-                style="display: none"
-              />
-              <button class="ghost" onclick={() => fileInputEl?.click()} disabled={plugins.busy}>
-                choose file…
-              </button>
-            </div>
-          </details>
-        {/if}
-      </div>
+<dialog
+  bind:this={dialogEl}
+  onclose={close}
+  onkeydown={onKeydown}
+  class="m-auto bg-surface text-fg rounded-xl border border-border shadow-2xl
+         backdrop:bg-black/60 backdrop:backdrop-blur-sm
+         w-[min(640px,calc(100vw-32px))] h-[min(720px,calc(100vh-64px))] p-0"
+>
+ <div class="flex flex-col h-full">
+  <header class="flex items-center justify-between px-6 py-4">
+    <div class="flex flex-col gap-0.5">
+      <h2 class="text-[15px] font-semibold leading-none m-0">Plugins</h2>
+      <p class="text-[11px] text-fg-muted m-0">Extend the studio. Bytes embed in the file when shared.</p>
     </div>
+    <button
+      onclick={close}
+      class="text-fg-muted hover:text-fg cursor-pointer text-lg leading-none bg-transparent border-0 p-1 -mr-2"
+      aria-label="Close"
+    >×</button>
+  </header>
+
+  <!-- Tabs -->
+  <div class="flex items-center gap-1 px-5 mb-3" role="tablist">
+    <button
+      role="tab"
+      aria-selected={tab === "browse"}
+      onclick={() => tab = "browse"}
+      class="text-[12px] px-3 py-1.5 rounded-md cursor-pointer bg-transparent border-0 transition-colors"
+      class:text-fg={tab === "browse"}
+      class:bg-bg={tab === "browse"}
+      class:text-fg-muted={tab !== "browse"}
+    >
+      Browse
+      {#if plugins.registry.status === "loaded"}
+        <span class="ms-1 text-[10px] text-fg-faint">{plugins.registry.entries.length}</span>
+      {/if}
+    </button>
+    <button
+      role="tab"
+      aria-selected={tab === "installed"}
+      onclick={() => tab = "installed"}
+      class="text-[12px] px-3 py-1.5 rounded-md cursor-pointer bg-transparent border-0 transition-colors"
+      class:text-fg={tab === "installed"}
+      class:bg-bg={tab === "installed"}
+      class:text-fg-muted={tab !== "installed"}
+    >
+      Installed
+      {#if plugins.items.length > 0}
+        <span class="ms-1 text-[10px] text-fg-faint">{plugins.items.length}</span>
+      {/if}
+    </button>
+    <span class="flex-1"></span>
+    {#if tab === "browse"}
+      <button
+        type="button"
+        onclick={onRefreshRegistry}
+        disabled={plugins.registry.status === "loading"}
+        class="text-[11px] text-fg-muted hover:text-fg cursor-pointer bg-transparent border-0 disabled:opacity-40 disabled:cursor-wait"
+      >
+        {plugins.registry.status === "loading" ? "loading…" : "refresh"}
+      </button>
+    {/if}
   </div>
-{/if}
 
-<style>
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 100;
-  }
-  .modal {
-    width: min(720px, 92vw);
-    max-height: 86vh;
-    background: var(--color-page);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-    display: flex; flex-direction: column;
-  }
-  .modal-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px; border-bottom: 1px solid var(--color-border);
-  }
-  .modal-close {
-    width: 24px; height: 24px;
-    background: transparent; border: 0; color: var(--color-fg-muted);
-    cursor: pointer; font-size: 20px; line-height: 1;
-  }
-  .modal-close:hover { color: var(--color-fg); }
-  .modal-body { padding: 16px; overflow-y: auto; }
+  <Scrollbox class="flex-1">
+    <div class="px-6 pb-6 flex flex-col gap-3">
+    {#if error}
+      <div class="text-[11px] text-rose-300 bg-rose-950/30 border border-rose-900/60 rounded-md px-3 py-2">{error}</div>
+    {/if}
+    {#if success}
+      <div class="text-[11px] text-emerald-300 bg-emerald-950/30 border border-emerald-900/60 rounded-md px-3 py-2">{success}</div>
+    {/if}
 
-  .tabs {
-    display: flex; gap: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-  .tab {
-    flex: 0 0 auto;
-    height: 32px; padding: 0 14px;
-    background: transparent; border: 0; cursor: pointer;
-    color: var(--color-fg-muted);
-    font: 600 11px var(--font-mono);
-    text-transform: uppercase; letter-spacing: 0.08em;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    display: inline-flex; align-items: center; gap: 6px;
-  }
-  .tab:hover { color: var(--color-fg); }
-  .tab.active { color: var(--color-fg); border-bottom-color: var(--color-accent); }
-  .tab-count {
-    font-weight: 400; font-size: 9px;
-    padding: 1px 6px; border-radius: 999px;
-    background: var(--color-surface); color: var(--color-fg-faint);
-  }
+    {#if tab === "browse"}
+      {#if plugins.registry.status === "loading" && plugins.registry.entries.length === 0}
+        <p class="text-[12px] text-fg-faint text-center py-8">Loading catalog…</p>
+      {:else if plugins.registry.status === "error"}
+        <p class="text-[12px] text-rose-300 text-center py-4">Couldn't load registry: {plugins.registry.error}</p>
+      {:else if plugins.registry.entries.length === 0}
+        <p class="text-[12px] text-fg-faint text-center py-8">Registry is empty. Use the custom installer in Installed → Advanced.</p>
+      {:else}
+        {#each plugins.registry.entries as e (e.id)}
+          {@const installed = installedById.get(e.id)}
+          {@const update = installed ? plugins.getRegistryUpdate(e.id) : null}
+          {@const isOpen = expanded[e.id]}
+          <div class="rounded-lg border border-border">
+            <div class="flex items-center gap-4 px-5 py-4">
+              <button
+                type="button"
+                onclick={() => expanded[e.id] = !isOpen}
+                class="flex-1 flex items-center gap-3 min-w-0 bg-transparent border-0 cursor-pointer text-left p-0"
+              >
+                {#if e.icon}<span class="text-[20px] shrink-0">{e.icon}</span>{/if}
+                <div class="flex flex-col gap-0.5 min-w-0">
+                  <span class="text-[14px] font-medium truncate">{e.name}</span>
+                  {#if e.description}
+                    <p class="text-[12px] text-fg-muted m-0 truncate">{e.description}</p>
+                  {/if}
+                </div>
+              </button>
 
-  .browse-head {
-    display: flex; gap: 12px; align-items: flex-start;
-    justify-content: space-between;
-  }
-  .browse-head .ghost {
-    flex-shrink: 0;
-    height: 24px; padding: 0 10px;
-    border: 1px solid var(--color-border); border-radius: 4px;
-    background: transparent; color: var(--color-fg-muted);
-    font: 10px var(--font-mono); cursor: pointer;
-  }
-  .browse-head .ghost:hover:not(:disabled) { color: var(--color-fg); border-color: var(--color-fg); }
-  .browse-head .ghost:disabled { opacity: 0.4; cursor: wait; }
+              {#if !installed}
+                <button
+                  type="button"
+                  onclick={() => onInstallFromRegistry(e.id)}
+                  disabled={plugins.busy}
+                  class="text-[12px] font-medium px-3 py-1.5 rounded-md
+                         bg-accent text-accent-fg cursor-pointer border-0
+                         disabled:opacity-50 disabled:cursor-wait shrink-0"
+                >Install</button>
+              {:else if update}
+                <button
+                  type="button"
+                  onclick={() => onUpdate(e.id)}
+                  disabled={plugins.busy}
+                  title={`update from v${installed.version} to v${update.version}`}
+                  class="text-[12px] font-medium px-3 py-1.5 rounded-md
+                         bg-accent text-accent-fg cursor-pointer border-0
+                         disabled:opacity-50 disabled:cursor-wait shrink-0"
+                >Update</button>
+              {:else}
+                <span class="text-[11px] text-fg-faint shrink-0">Installed</span>
+              {/if}
+            </div>
 
-  .install-row { display: flex; gap: 8px; }
-  .install-row input {
-    flex: 1; height: 28px; padding: 0 10px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-surface);
-    color: var(--color-fg);
-    font-family: var(--font-mono); font-size: 11px;
-    outline: none;
-  }
-  .install-row input:focus { border-color: var(--color-accent); }
-  .install-row button {
-    height: 28px; padding: 0 14px;
-    border: 1px solid var(--color-accent);
-    border-radius: 4px;
-    background: var(--color-accent);
-    color: var(--color-accent-fg);
-    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-    cursor: pointer;
-  }
-  .install-row button:disabled { opacity: 0.4; cursor: wait; }
-  .file-row {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; margin-top: 6px;
-    font: 10px var(--font-mono); color: var(--color-fg-faint);
-  }
-  .file-row button {
-    height: 24px; padding: 0 10px;
-    border: 1px solid var(--color-border); border-radius: 4px;
-    background: transparent; color: var(--color-fg-muted);
-    font: 10px var(--font-mono); cursor: pointer;
-  }
-  .file-row button:hover:not(:disabled) { color: var(--color-fg); border-color: var(--color-fg); }
-  .file-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+            {#if isOpen}
+              <div class="px-5 pb-4 -mt-1 flex flex-col gap-2 text-[12px] text-fg-muted">
+                <div class="flex flex-wrap gap-x-4 gap-y-1">
+                  <span class="text-fg-faint">v{e.latest?.version}</span>
+                  {#if e.author}<span>by {e.author}</span>{/if}
+                </div>
+                {#if e.surfaces?.length || e.permissions?.length}
+                  <div class="flex flex-col gap-1 text-[11px]">
+                    {#if e.surfaces?.length}<div><span class="text-fg-faint">Surfaces:</span> {e.surfaces.join(", ")}</div>{/if}
+                    {#if e.permissions?.length}<div><span class="text-fg-faint">Permissions:</span> {e.permissions.join(", ")}</div>{/if}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      {/if}
+    {:else}
+      <!-- Installed tab -->
+      {#if plugins.items.length === 0}
+        <p class="text-[12px] text-fg-faint text-center py-8">No plugins installed yet — head to Browse.</p>
+      {:else}
+        {#each plugins.items as p, idx (p.id)}
+          {@const update = plugins.getRegistryUpdate(p.id)}
+          {@const isOpen = expanded[p.id]}
+          <div class="rounded-lg border border-border">
+            <div class="flex items-center gap-4 px-5 py-4">
+              <label class="relative shrink-0 w-9 h-5" title={p.enabled ? "enabled" : "disabled"}>
+                <input
+                  type="checkbox"
+                  checked={p.enabled}
+                  onchange={(ev) => onToggle(p.id, ev)}
+                  class="absolute opacity-0 pointer-events-none"
+                />
+                <span class="absolute inset-0 rounded-full transition-colors cursor-pointer"
+                      class:bg-border={!p.enabled}
+                      class:bg-accent={p.enabled}>
+                </span>
+                <span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                      class:translate-x-4={p.enabled}>
+                </span>
+              </label>
 
-  .msg { margin-bottom: 8px; padding: 6px 10px; border-radius: 4px; font: 11px var(--font-mono); }
-  .msg-err { color: rgb(248 113 113); border: 1px solid rgba(220, 38, 38, 0.4); background: rgba(127, 29, 29, 0.18); }
-  .msg-ok { color: rgb(74 222 128); border: 1px solid rgba(34, 197, 94, 0.4); background: rgba(20, 83, 45, 0.18); }
+              <button
+                type="button"
+                onclick={() => expanded[p.id] = !isOpen}
+                class="flex-1 flex items-center gap-3 min-w-0 bg-transparent border-0 cursor-pointer text-left p-0"
+              >
+                {#if p.icon}<span class="text-[18px] shrink-0">{p.icon}</span>{/if}
+                <div class="flex flex-col gap-0.5 min-w-0">
+                  <div class="flex items-baseline gap-2">
+                    <span class="text-[14px] font-medium truncate">{p.name}</span>
+                    {#if update}<span class="text-[10px] text-amber-300">update available</span>{/if}
+                  </div>
+                  {#if p.description}<p class="text-[12px] text-fg-muted m-0 truncate">{p.description}</p>{/if}
+                </div>
+              </button>
 
-  .plugin-list { list-style: none; padding: 0; margin: 8px 0 0; }
-  .plugin-row {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-border);
-    align-items: start;
-  }
-  .plugin-row-installed {
-    grid-template-columns: auto auto 1fr auto;
-  }
-  .plugin-order {
-    display: flex; flex-direction: column; gap: 2px;
-    margin-top: 2px;
-  }
-  .order-btn {
-    width: 18px; height: 14px;
-    background: transparent;
-    border: 1px solid var(--color-border);
-    border-radius: 3px;
-    color: var(--color-fg-muted);
-    font-size: 8px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .order-btn:hover:not(:disabled) {
-    color: var(--color-fg);
-    border-color: var(--color-fg);
-  }
-  .order-btn:disabled {
-    opacity: 0.3; cursor: not-allowed;
-  }
-  .browse-icon { width: 28px; display: flex; align-items: flex-start; justify-content: center; padding-top: 2px; }
-  .plugin-icon-lg { font-size: 18px; }
-  .plugin-toggle {
-    width: 28px; height: 16px;
-    position: relative; flex-shrink: 0;
-    margin-top: 2px;
-  }
-  .plugin-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-  .plugin-toggle .track {
-    position: absolute; inset: 0;
-    background: var(--color-border);
-    border-radius: 999px;
-    cursor: pointer;
-    transition: background 100ms ease;
-  }
-  .plugin-toggle .track::after {
-    content: "";
-    position: absolute;
-    top: 2px; left: 2px;
-    width: 12px; height: 12px;
-    background: white;
-    border-radius: 999px;
-    transition: transform 100ms ease;
-  }
-  .plugin-toggle input:checked ~ .track { background: var(--color-accent); }
-  .plugin-toggle input:checked ~ .track::after { transform: translateX(12px); }
-  .plugin-meta { font-family: var(--font-mono); font-size: 11px; min-width: 0; }
-  .plugin-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .plugin-icon { font-size: 14px; }
-  .plugin-name { color: var(--color-fg); font-weight: 600; }
-  .plugin-version { color: var(--color-fg-faint); font-size: 10px; }
-  .plugin-desc { color: var(--color-fg-muted); font-size: 11px; margin: 4px 0 0; }
-  .plugin-aux { display: flex; gap: 12px; flex-wrap: wrap; color: var(--color-fg-faint); font-size: 10px; margin: 4px 0 0; }
-  .plugin-url { color: var(--color-fg-faint); font-size: 10px; word-break: break-all; display: block; margin: 4px 0 0; }
+              <div class="flex items-center gap-1 shrink-0">
+                {#if idx > 0}
+                  <button
+                    type="button"
+                    onclick={() => plugins.move(p.id, -1)}
+                    disabled={plugins.busy}
+                    aria-label="Move up"
+                    title="Move up"
+                    class="text-[10px] text-fg-muted hover:text-fg cursor-pointer bg-transparent border-0 px-1 py-1"
+                  >▲</button>
+                {/if}
+                {#if idx < plugins.items.length - 1}
+                  <button
+                    type="button"
+                    onclick={() => plugins.move(p.id, +1)}
+                    disabled={plugins.busy}
+                    aria-label="Move down"
+                    title="Move down"
+                    class="text-[10px] text-fg-muted hover:text-fg cursor-pointer bg-transparent border-0 px-1 py-1"
+                  >▼</button>
+                {/if}
+              </div>
+            </div>
 
-  .badge {
-    font-size: 9px; padding: 1px 6px; border-radius: 4px;
-    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
-  }
-  .badge-ok    { color: rgb(74 222 128); background: rgba(20, 83, 45, 0.22); }
-  .badge-update{ color: rgb(251 191 36); background: rgba(120, 53, 15, 0.28); }
+            {#if isOpen}
+              <div class="px-5 pb-4 -mt-1 flex flex-col gap-3 text-[12px] text-fg-muted">
+                <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                  {#if p.version}<span class="text-fg-faint">v{p.version}</span>{/if}
+                  <span title={`installed ${fmtAge(p.installedAt)}`}>updated {fmtAge(p.updatedAt)}</span>
+                </div>
+                {#if p.surfaces?.length || p.permissions?.length}
+                  <div class="flex flex-col gap-1 text-[11px]">
+                    {#if p.surfaces?.length}<div><span class="text-fg-faint">Surfaces:</span> {p.surfaces.join(", ")}</div>{/if}
+                    {#if p.permissions?.length}<div><span class="text-fg-faint">Permissions:</span> {p.permissions.join(", ")}</div>{/if}
+                  </div>
+                {/if}
+                {#if p.source?.url}
+                  <code class="text-[10px] text-fg-faint break-all">{p.source.url}</code>
+                {/if}
+                <div class="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onclick={() => onUpdate(p.id)}
+                    disabled={plugins.busy || !p.source?.url}
+                    title="Re-fetch source URL and replace embedded bytes"
+                    class="text-[11px] px-3 py-1.5 rounded-md border border-border text-fg-muted hover:text-fg hover:border-fg cursor-pointer bg-transparent disabled:opacity-40 disabled:cursor-not-allowed"
+                  >Update</button>
+                  <button
+                    type="button"
+                    onclick={() => onRemove(p.id)}
+                    class="text-[11px] px-3 py-1.5 rounded-md border border-border text-fg-muted hover:text-rose-300 hover:border-rose-900 cursor-pointer bg-transparent"
+                  >Remove</button>
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      {/if}
 
-  .plugin-actions { display: flex; gap: 4px; flex-shrink: 0; }
-  .plugin-actions button {
-    height: 24px; padding: 0 10px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    background: var(--color-surface);
-    color: var(--color-fg-muted);
-    font-family: var(--font-mono); font-size: 10px;
-    cursor: pointer;
-  }
-  .plugin-actions button:hover:not(:disabled) { color: var(--color-fg); border-color: var(--color-fg); }
-  .plugin-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .plugin-actions .primary {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-accent-fg);
-    font-weight: 600;
-  }
-  .plugin-actions .primary:hover:not(:disabled) {
-    color: var(--color-accent-fg);
-    border-color: var(--color-accent);
-    filter: brightness(1.1);
-  }
-  .plugin-actions .danger:hover:not(:disabled) {
-    color: rgb(248 113 113);
-    border-color: rgba(220, 38, 38, 0.6);
-  }
-
-  .advanced {
-    margin-top: 18px; padding-top: 12px;
-    border-top: 1px dashed var(--color-border);
-  }
-  .advanced summary {
-    cursor: pointer; user-select: none;
-    color: var(--color-fg-muted);
-    font: 600 10px var(--font-mono);
-    text-transform: uppercase; letter-spacing: 0.08em;
-    list-style: none;
-  }
-  .advanced summary::-webkit-details-marker { display: none; }
-  .advanced summary::before {
-    content: "▸ "; display: inline-block;
-    transition: transform 100ms ease;
-  }
-  .advanced[open] summary::before {
-    transform: rotate(90deg) translateX(2px);
-  }
-  .advanced summary:hover { color: var(--color-fg); }
-</style>
+      <details class="mt-2 pt-3 border-t border-dashed border-border">
+        <summary class="text-[11px] text-fg-muted hover:text-fg cursor-pointer select-none">Advanced — install from URL or file</summary>
+        <div class="flex flex-col gap-2 mt-3">
+          <div class="flex items-center gap-2">
+            <input
+              type="url"
+              placeholder="https://raw.githubusercontent.com/.../plugin.js"
+              bind:value={url}
+              onkeydown={(e) => e.key === "Enter" && onInstallFromUrl()}
+              disabled={plugins.busy}
+              class="flex-1 font-mono text-[11px] px-3 py-2 bg-bg border border-border rounded-md text-fg placeholder:text-fg-faint focus:outline-none focus:border-accent"
+            />
+            <button
+              type="button"
+              onclick={onInstallFromUrl}
+              disabled={plugins.busy || !url.trim()}
+              class="text-[11px] font-medium px-3 py-2 rounded-md bg-accent text-accent-fg cursor-pointer border-0 disabled:opacity-40 disabled:cursor-wait"
+            >{plugins.busy ? "Installing…" : "Install"}</button>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-fg-faint">
+            <span>or pick a local file:</span>
+            <input
+              type="file"
+              accept=".js,.mjs,application/javascript,text/javascript"
+              bind:this={fileInputEl}
+              onchange={onPickFile}
+              class="hidden"
+            />
+            <button
+              type="button"
+              onclick={() => fileInputEl?.click()}
+              disabled={plugins.busy}
+              class="text-[11px] px-3 py-1.5 rounded-md border border-border text-fg-muted hover:text-fg hover:border-fg cursor-pointer bg-transparent disabled:opacity-40"
+            >Choose file…</button>
+          </div>
+        </div>
+      </details>
+    {/if}
+    </div>
+  </Scrollbox>
+ </div>
+</dialog>

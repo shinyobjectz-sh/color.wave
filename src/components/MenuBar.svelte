@@ -18,6 +18,13 @@
 
   import { onMount } from "svelte";
   import logoUrl from "../logo.svg";
+  import pkg from "../../package.json";
+
+  const APP_VERSION: string = (pkg as { version: string }).version;
+
+  // Save status display lives elsewhere now: errors surface via the
+  // autosave toast (see autoSave.svelte.js → showAutoSaveToast).
+  // Healthy state is invisible — that's the whole point of autosave.
 
   type MenuItem =
     | { kind: "item"; label: string; accel?: string; onSelect: () => void; disabled?: boolean }
@@ -37,6 +44,9 @@
     onExportHyperframe?: () => void;
     onPluginManager?: () => void;
     onSkillManager?: () => void;
+    onIntegrationManager?: () => void;
+    onAgentManager?: () => void;
+    onPermissionsManager?: () => void;
   };
 
   let {
@@ -50,6 +60,9 @@
     onExportHyperframe,
     onPluginManager,
     onSkillManager,
+    onIntegrationManager,
+    onAgentManager,
+    onPermissionsManager,
   }: Props = $props();
 
   // Active dropdown — null when no menu is open.
@@ -85,15 +98,13 @@
       ],
     },
     {
-      label: "Plugins",
+      label: "Manage",
       items: [
-        { kind: "item", label: "Plugin Manager…", onSelect: () => onPluginManager?.(), disabled: !onPluginManager },
-      ],
-    },
-    {
-      label: "Skills",
-      items: [
-        { kind: "item", label: "Skill Manager…", onSelect: () => onSkillManager?.(), disabled: !onSkillManager },
+        { kind: "item", label: "Plugins…",      onSelect: () => onPluginManager?.(),      disabled: !onPluginManager },
+        { kind: "item", label: "Skills…",       onSelect: () => onSkillManager?.(),       disabled: !onSkillManager },
+        { kind: "item", label: "Integrations…", onSelect: () => onIntegrationManager?.(), disabled: !onIntegrationManager },
+        { kind: "item", label: "Agents…",       onSelect: () => onAgentManager?.(),       disabled: !onAgentManager },
+        { kind: "item", label: "Permissions…",  onSelect: () => onPermissionsManager?.(),  disabled: !onPermissionsManager },
       ],
     },
   ]);
@@ -136,6 +147,7 @@
   <div class="mb-logo" aria-hidden="true">
     <img src={logoUrl} alt="" />
   </div>
+  <span class="mb-version" aria-label={`version ${APP_VERSION}`}>v{APP_VERSION}</span>
   {#each menus as m (m.label)}
     <div class="mb-slot">
       <button
@@ -179,7 +191,7 @@
   }
   .mb-logo {
     display: flex; align-items: center;
-    padding: 0 10px 0 12px;
+    padding: 0 6px 0 12px;
     user-select: none;
     pointer-events: none;
   }
@@ -187,6 +199,17 @@
     display: block;
     height: 16px; width: auto;
     opacity: 0.92;
+  }
+  .mb-version {
+    display: inline-flex; align-items: center;
+    padding-right: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--color-fg-muted);
+    opacity: 0.55;
+    letter-spacing: 0.02em;
+    user-select: none;
+    pointer-events: none;
   }
   .mb-slot { position: relative; display: flex; }
   .mb-trigger {

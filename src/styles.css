@@ -1,5 +1,50 @@
 @import "tailwindcss";
 
+/* Custom scrollbars — match the zinc chrome so scrollboxes don't pop
+ * with platform defaults (translucent overlay bars on macOS, chunky
+ * blue tracks on Windows). Applied globally so any scrollable
+ * surface — modals, panels, lists — inherits without per-element
+ * opt-in.
+ *
+ * macOS gotcha: Chromium / Safari ship "overlay" scrollbars by
+ * default that auto-hide AND ignore ::-webkit-scrollbar custom
+ * styling unless we set `-webkit-appearance: none`. Without that
+ * line, this whole block silently no-ops on macOS. (Firefox uses
+ * the `scrollbar-*` longhand instead and ignores the WebKit pseudos.)
+ */
+/* Note: macOS Safari overlay scrollbars ignore ::-webkit-scrollbar
+ * styling, so for surfaces where the scrollbar must look custom
+ * (modals, panels) wrap content in <Scrollbox>. The rules below
+ * are a softening pass for surfaces that don't go through that
+ * component (the page-level scroll, dev tools, etc.) on browsers
+ * that DO honor the pseudos (Firefox via scrollbar-*, Chromium
+ * with non-overlay mode). They no-op on macOS Safari overlay. */
+html, body, div, section, main, aside, ul, ol, nav {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-2) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-2);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 24px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-fg-faint);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 @theme {
   /* Strict monochromatic zinc palette — pure neutral gray, no blue
    * undertones. Chrome is intentionally neutral; only the composition
@@ -10,6 +55,10 @@
   --color-page:     #09090b; /* zinc-950 */
   --color-surface:  #18181b; /* zinc-900 */
   --color-surface-2:#27272a; /* zinc-800 */
+  /* Player stage — sits behind the video canvas; one notch lighter
+   * than --color-surface so the black canvas reads as a distinct
+   * frame rather than dissolving into the chrome. */
+  --color-stage:    #131316; /* sits between zinc-950 page and zinc-900 surface */
   --color-fg:       #fafafa; /* zinc-50  */
   --color-fg-muted: #a1a1aa; /* zinc-400 */
   --color-fg-faint: #52525b; /* zinc-600 */

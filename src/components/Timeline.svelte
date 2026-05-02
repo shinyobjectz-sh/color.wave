@@ -1,6 +1,7 @@
 <script>
   import { composition } from "../lib/composition.svelte.js";
-  import { layout, ZOOM_PRESETS } from "../lib/layout.svelte.js";
+  import { layout, ZOOM_PRESETS, ASPECT_PRESETS } from "../lib/layout.svelte.js";
+  import { togglePlay, restart as restartPlayback, fmtTime as fmtTransport } from "../lib/transport.svelte.js";
   import RangeEditorPopover from "./RangeEditorPopover.svelte";
   import { timelineClipActions } from "../lib/pluginApi.svelte.js";
 
@@ -122,18 +123,6 @@
   }
 
   let zoomPct = $derived(Math.round((layout.pps / 100) * 100));
-
-  // First-run hint banner. Same localStorage key as upstream
-  // HyperFrames Studio so a user who's already dismissed it there
-  // won't see it again here.
-  const HINT_KEY = "hf-studio-timeline-editor-hint-dismissed";
-  let hintDismissed = $state(
-    typeof localStorage !== "undefined" && localStorage.getItem(HINT_KEY) === "1"
-  );
-  function dismissHint() {
-    hintDismissed = true;
-    try { localStorage.setItem(HINT_KEY, "1"); } catch {}
-  }
 
   // ─── Drop import ────────────────────────────────────────────
   // Drag image/video/audio files onto the track → resolve drop
@@ -541,59 +530,62 @@
 />
 
 <div class="border-t border-border bg-page h-full flex flex-col select-none min-h-0">
-  <!-- Header -->
-  <div class="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
-    <h4 class="font-mono text-[10px] uppercase tracking-wider text-fg-muted m-0 font-semibold">
-      timeline
-      <span class="text-fg-faint normal-case tracking-normal font-normal ml-2">
-        {composition.clips.length} clip{composition.clips.length === 1 ? "" : "s"}
-        · {lanes.length} lane{lanes.length === 1 ? "" : "s"}
-      </span>
-    </h4>
-
+  <!-- Toolbar: transport (play/restart/time) on the left, aspect picker
+       on the right. Replaces the previous Player transport bar AND the
+       old timeline header — one unified strip. -->
+  <div class="flex items-center justify-between gap-3 px-4 py-2 border-b border-border flex-shrink-0">
     <div class="flex items-center gap-3">
-      <span class="font-mono text-[10px] text-fg-faint tabular-nums hidden sm:inline">
-        drag to scrub · ←/→ nudge
+      <button
+        onclick={togglePlay}
+        class="h-8 w-8 rounded-full flex items-center justify-center cursor-pointer
+               border border-accent bg-accent text-accent-fg
+               hover:opacity-90 active:scale-95 transition"
+        title={composition.playing ? "Pause (space)" : "Play (space)"}
+        aria-label={composition.playing ? "Pause" : "Play"}
+      >
+        {#if composition.playing}
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="1" width="3.5" height="12" rx="0.5"/><rect x="8.5" y="1" width="3.5" height="12" rx="0.5"/></svg>
+        {:else}
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5 L12 7 L3 12.5 Z"/></svg>
+        {/if}
+      </button>
+
+      <button
+        onclick={restartPlayback}
+        class="h-7 w-7 rounded-full flex items-center justify-center cursor-pointer
+               border border-border bg-surface text-fg
+               hover:bg-surface-2 hover:border-border-2 active:scale-95 transition"
+        title="Restart (R)"
+        aria-label="Restart"
+      >
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 7a5 5 0 1 0 1.46-3.54"/>
+          <polyline points="2,2 2,4 4,4"/>
+        </svg>
+      </button>
+
+      <span class="font-mono text-[12px] text-fg tabular-nums">
+        {fmtTransport(composition.curTime)}
+        <span class="text-fg-faint"> / {fmtTransport(composition.totalDuration)}</span>
       </span>
-      <!-- Zoom controls -->
-      <div class="flex items-center gap-1 font-mono text-[10px]">
+    </div>
+
+    <!-- Aspect-ratio picker (moved here from the player overlay). -->
+    <div class="flex items-center gap-0.5 p-0.5 rounded border border-border bg-surface">
+      {#each ASPECT_PRESETS as a}
         <button
-          onclick={() => layout.zoomBy(-1)}
-          disabled={layout.pps <= ZOOM_PRESETS[0] * 100 + 1e-3}
-          class="h-6 w-6 rounded border border-border bg-surface text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Zoom out"
-          aria-label="Zoom out"
-        >−</button>
-        <button
-          onclick={() => layout.setZoom(1)}
-          class="px-2 h-6 rounded border border-border bg-surface text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer tabular-nums"
-          title="Reset zoom"
-        >{zoomPct}%</button>
-        <button
-          onclick={() => layout.zoomBy(+1)}
-          disabled={layout.pps >= ZOOM_PRESETS[ZOOM_PRESETS.length - 1] * 100 - 1e-3}
-          class="h-6 w-6 rounded border border-border bg-surface text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Zoom in"
-          aria-label="Zoom in"
-        >+</button>
-      </div>
+          onclick={() => layout.setAspect(a.id)}
+          class="font-mono text-[10px] px-1.5 h-5 rounded cursor-pointer transition-colors tabular-nums"
+          class:bg-accent={layout.aspect === a.id}
+          class:text-accent-fg={layout.aspect === a.id}
+          class:text-fg-muted={layout.aspect !== a.id}
+          class:hover:text-fg={layout.aspect !== a.id}
+          title={a.hint}
+          aria-pressed={layout.aspect === a.id}
+        >{a.label}</button>
+      {/each}
     </div>
   </div>
-
-  {#if !hintDismissed}
-    <div class="flex items-start gap-2 px-4 py-2 border-b border-border bg-surface text-fg-muted font-mono text-[11px] flex-shrink-0">
-      <span class="text-accent mt-0.5">●</span>
-      <span class="flex-1 leading-relaxed">
-        Drag clips to retime, drag edges to trim, <strong class="text-fg">Shift+click</strong> to edit a range exactly. Trim handles only show on clips Studio can patch safely.
-      </span>
-      <button
-        onclick={dismissHint}
-        class="text-fg-faint hover:text-fg cursor-pointer px-1 leading-none"
-        aria-label="Dismiss hint"
-        title="Dismiss"
-      >×</button>
-    </div>
-  {/if}
 
   {#if dropFlash}
     <div
@@ -759,5 +751,29 @@
         {/if}
       </div>
     </div>
+  </div>
+
+  <!-- Timeline footer: zoom controls. Lives below the scrollable body
+       so it stays pinned regardless of timeline content height. -->
+  <div class="flex items-center justify-end gap-1 px-4 py-1.5 border-t border-border flex-shrink-0 font-mono text-[10px]">
+    <button
+      onclick={() => layout.zoomBy(-1)}
+      disabled={layout.pps <= ZOOM_PRESETS[0] * 100 + 1e-3}
+      class="h-6 w-6 rounded border border-border bg-surface text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+      title="Zoom out"
+      aria-label="Zoom out"
+    >−</button>
+    <button
+      onclick={() => layout.setZoom(1)}
+      class="px-2 h-6 rounded border border-border bg-surface text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer tabular-nums"
+      title="Reset zoom"
+    >{zoomPct}%</button>
+    <button
+      onclick={() => layout.zoomBy(+1)}
+      disabled={layout.pps >= ZOOM_PRESETS[ZOOM_PRESETS.length - 1] * 100 - 1e-3}
+      class="h-6 w-6 rounded border border-border bg-surface text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+      title="Zoom in"
+      aria-label="Zoom in"
+    >+</button>
   </div>
 </div>

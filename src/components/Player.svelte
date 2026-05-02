@@ -2,6 +2,11 @@
   import { onMount, onDestroy } from "svelte";
   import { composition } from "../lib/composition.svelte.js";
   import { layout, ASPECT_PRESETS } from "../lib/layout.svelte.js";
+  import {
+    registerSender,
+    togglePlay,
+    restart,
+  } from "../lib/transport.svelte.js";
   let frameEl;
   let containerEl;
 
@@ -59,35 +64,19 @@
 
   function send(msg) { frameEl?.contentWindow?.postMessage(msg, "*"); }
 
-  function play() {
-    if (composition.playing) {
-      composition.playing = false;
-      send({ type: "pause" });
-    } else {
-      composition.playing = true;
-      // If we hit the end, the iframe restarts on play.
-      send({ type: "play" });
-    }
-  }
-  function restart() {
-    composition.curTime = 0;
-    composition.playing = false;
-    send({ type: "restart" });
-  }
+  // Register this Player's iframe as the transport target so the
+  // timeline-header buttons (and the keyboard shortcuts below) drive
+  // playback from outside this component.
+  let unregister;
+  onMount(() => { unregister = registerSender(send); });
+  onDestroy(() => { unregister?.(); });
 
-  function fmtTime(s) {
-    if (!Number.isFinite(s) || s < 0) return "0:00.0";
-    const m = Math.floor(s / 60);
-    const sec = s - m * 60;
-    return `${m}:${sec.toFixed(1).padStart(4, "0")}`;
-  }
-
-  // Spacebar = play/pause, R = restart. Only when player area is focused
-  // OR when no input/textarea is active.
+  // Spacebar = play/pause, R = restart. Only when no input/textarea
+  // is active.
   function onKey(e) {
     const tag = (document.activeElement?.tagName ?? "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
-    if (e.key === " ") { e.preventDefault(); play(); }
+    if (e.key === " ") { e.preventDefault(); togglePlay(); }
     else if (e.key === "r" || e.key === "R") restart();
   }
   onMount(() => window.addEventListener("keydown", onKey));
@@ -96,25 +85,8 @@
 
 <div
   bind:this={containerEl}
-  class="relative bg-page p-4 flex items-center justify-center min-h-0 min-w-0 overflow-hidden flex-1"
+  class="relative bg-stage px-4 py-8 flex items-center justify-center min-h-0 min-w-0 overflow-hidden flex-1"
 >
-  <!-- Aspect-ratio picker overlay (top-right of preview area). -->
-  <div class="absolute top-3 right-3 z-10 flex items-center gap-1 p-1 rounded-lg
-              bg-surface/80 backdrop-blur border border-border shadow-lg">
-    {#each ASPECT_PRESETS as a}
-      <button
-        onclick={() => layout.setAspect(a.id)}
-        class="font-mono text-[11px] px-2 py-1 rounded cursor-pointer transition-colors"
-        class:bg-accent={layout.aspect === a.id}
-        class:text-accent-fg={layout.aspect === a.id}
-        class:text-fg-muted={layout.aspect !== a.id}
-        class:hover:text-fg={layout.aspect !== a.id}
-        title={a.hint}
-        aria-pressed={layout.aspect === a.id}
-      >{a.label}</button>
-    {/each}
-  </div>
-
   <div
     class="bg-black border border-border-2 rounded-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
     style="width: {frameW}px; height: {frameH}px;"
@@ -132,44 +104,3 @@
   </div>
 </div>
 
-<div class="flex items-center gap-3 px-4 py-3 border-t border-border">
-  <button
-    onclick={play}
-    class="h-10 w-10 rounded-full flex items-center justify-center cursor-pointer
-           border border-accent bg-accent text-accent-fg
-           hover:opacity-90 active:scale-95 transition"
-    title={composition.playing ? "Pause (space)" : "Play (space)"}
-    aria-label={composition.playing ? "Pause" : "Play"}
-  >
-    {#if composition.playing}
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="1" width="3.5" height="12" rx="0.5"/><rect x="8.5" y="1" width="3.5" height="12" rx="0.5"/></svg>
-    {:else}
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5 L12 7 L3 12.5 Z"/></svg>
-    {/if}
-  </button>
-
-  <button
-    onclick={restart}
-    class="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer
-           border border-border bg-surface text-fg
-           hover:bg-surface-2 hover:border-border-2 active:scale-95 transition"
-    title="Restart (R)"
-    aria-label="Restart"
-  >
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 7a5 5 0 1 0 1.46-3.54"/>
-      <polyline points="2,2 2,4 4,4"/>
-    </svg>
-  </button>
-
-  <span class="font-mono text-[13px] text-fg tabular-nums">
-    {fmtTime(composition.curTime)}
-    <span class="text-fg-faint"> / {fmtTime(composition.totalDuration)}</span>
-  </span>
-
-  <span class="flex-1"></span>
-
-  <span class="font-mono text-[11px] text-fg-faint tabular-nums">
-    {composition.clips.length} clip{composition.clips.length === 1 ? "" : "s"}
-  </span>
-</div>

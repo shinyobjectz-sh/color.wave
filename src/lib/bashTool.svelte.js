@@ -24,6 +24,7 @@ import { composition, redactDataUrlsForAgent, expandAssetPlaceholders } from "./
 import { assets } from "./assets.svelte.js";
 import { listSkillFiles, loadSkill } from "./skills.js";
 import { userSkills } from "./userSkills.svelte.js";
+import { makeWbFetchCommand } from "./wbFetch.svelte.js";
 
 const COMPOSITION_PATH = "/workbook/composition.html";
 const ASSETS_LIST_PATH = "/workbook/assets/list.txt";
@@ -68,6 +69,13 @@ function ensureBash() {
       [ASSETS_LIST_PATH]: buildAssetsListing(),
       ...buildSkillFiles(),
     },
+    // `wb-fetch` is the only network path the agent has. The just-bash
+    // sandbox has no curl/wget; we deliberately don't add any either.
+    // Routing all outbound HTTPS through wb-fetch → daemon /proxy
+    // means the agent never sees secret values: it names a keychain
+    // id, the daemon resolves + injects the header, the call goes
+    // out, the response comes back. See ./wbFetch.svelte.js.
+    customCommands: [makeWbFetchCommand()],
   });
   return _bash;
 }
@@ -86,6 +94,11 @@ export async function runBash(script) {
   await bash.fs.writeFile(COMPOSITION_PATH, redactDataUrlsForAgent(composition.html));
   await bash.fs.writeFile(ASSETS_LIST_PATH, buildAssetsListing());
 
+  // Integration secrets (FAL_API_KEY, etc.) are deliberately NOT
+  // injected here — they live in the OS keychain and the agent
+  // accesses them only via `wb-fetch --secret=ID`, which goes
+  // through the daemon /proxy. The agent never holds the value, so
+  // it can't accidentally echo a key into the chat transcript.
   const result = await bash.exec(String(script ?? ""));
 
   // Read composition back. If the script changed it, commit through

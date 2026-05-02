@@ -8,6 +8,10 @@
   import MenuBar from "./components/MenuBar.svelte";
   import PluginManager from "./components/PluginManager.svelte";
   import SkillManager from "./components/SkillManager.svelte";
+  import IntegrationManager from "./components/IntegrationManager.svelte";
+  import AgentManager from "./components/AgentManager.svelte";
+  import PermissionsDialog from "./components/PermissionsDialog.svelte";
+  import { permissionsPanel } from "./lib/permissionsPanel.svelte.js";
   import HistoryModal from "./components/HistoryModal.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
@@ -23,6 +27,8 @@
   let renderOpen = $state(false);
   let pluginsOpen = $state(false);
   let skillsOpen = $state(false);
+  let integrationsOpen = $state(false);
+  let agentsOpen = $state(false);
   let historyOpen = $state(false);
   let packaging = $state(false);
   let packageStatus = $state("");
@@ -140,24 +146,12 @@
       onHistory={() => historyOpen = true}
       onPluginManager={() => pluginsOpen = true}
       onSkillManager={() => skillsOpen = true}
+      onIntegrationManager={() => integrationsOpen = true}
+      onAgentManager={() => agentsOpen = true}
+      onPermissionsManager={() => permissionsPanel.open = true}
     />
 
     <span class="flex-1"></span>
-
-    <span
-      class="font-mono text-[10px] tabular-nums px-2 py-0.5 rounded-full border self-center"
-      class:text-accent={autoSave.status === "saved"}
-      class:border-accent={autoSave.status === "saved"}
-      class:text-fg-muted={autoSave.status !== "saved" && autoSave.status !== "error"}
-      class:border-border={autoSave.status !== "saved" && autoSave.status !== "error"}
-      class:text-rose-300={autoSave.status === "error"}
-      class:border-rose-800={autoSave.status === "error"}
-      title={autoSave.status === "error"
-        ? `Auto-save error: ${autoSave.errorMessage}`
-        : "Saves automatically to local storage on every change"}
-    >
-      {#if autoSave.status === "saved"}● saved{:else if autoSave.status === "saving"}↻ saving…{:else if autoSave.status === "pending"}● pending{:else if autoSave.status === "error"}⚠ {autoSave.errorMessage}{:else}○ saved{/if}
-    </span>
 
     <span class="font-mono text-[10px] tabular-nums px-2 py-0.5 rounded-full border self-center"
           class:text-accent={env.satisfied}
@@ -234,6 +228,9 @@
 <RenderModal bind:open={renderOpen} />
 <PluginManager bind:open={pluginsOpen} />
 <SkillManager bind:open={skillsOpen} />
+<IntegrationManager bind:open={integrationsOpen} />
+<AgentManager bind:open={agentsOpen} />
+<PermissionsDialog />
 <HistoryModal bind:open={historyOpen} />
 
 <!-- Hidden file input for File > Open Project. Accepts hyperframe.html

@@ -1,78 +1,76 @@
-// Auto-save status bridge. Phase 2 (Yjs) uses a `y-indexeddb`
-// provider for the actual persistence — this module no longer owns
-// the snapshot loop. Its remaining responsibilities:
+// Auto-save status bridge — substrate-backed.
 //
-//   1. Reflect the y-indexeddb status into a $state-tracked store the
-//      menubar pill subscribes to.
-//   2. Surface the user-facing "saves automatically" toast on Cmd+S
-//      (called from the iframe forwarder + the menubar pill click).
-//   3. Override `window.workbookSave` so the SDK's keydown listener
-//      no longer triggers a Save Page As dialog.
+// Surfaces the active substrate transport's status (saved-in-file /
+// needs-permission / download-to-keep / read-only) as a $state-tracked
+// store the menubar pill subscribes to.
 //
-// Cmd+S is intercepted to suppress the browser's "Save Page As" (which
-// would snapshot a stale DOM); shows a small toast confirming auto-
-// save is on. File export for sharing is a separate explicit flow
-// (File → Export…), not coupled to Cmd+S.
+// Wires Cmd+S to a substrate commitPatch via the workbookSave hook the
+// SDK's keydown listener calls. The actual write goes through the
+// transport returned by substrate's negotiate().
 
-import { bootstrapYjs, getDoc } from "./yjsBackend.svelte.js";
-import { onIdbStatus, flushNow } from "./idbPersistence.svelte.js";
+import { wbSubstrate } from "./substrateBackend.svelte.js";
 
 class AutoSaveStore {
-  // "idle" | "pending" | "saving" | "saved" | "error"
-  status       = $state("idle");
+  // Mirrors WriteSemantics.status from the substrate transport.
+  status       = $state("read-only");
+  /** Tier label for diagnostics: T2 / T3 / T4 / T5 */
+  tier         = $state("T5");
   lastSavedAt  = $state(0);
   errorMessage = $state("");
 
   _booted = false;
-  _doc    = null;
 
   async init() {
     if (this._booted) return;
     this._booted = true;
 
     try {
-      await bootstrapYjs();
+      await wbSubstrate.bootstrap();
     } catch (e) {
-      console.warn("[autosave] bootstrap failed:", e);
-      this.status = "error";
-      this.errorMessage = "Yjs bootstrap failed";
+      console.warn("[autosave] substrate bootstrap failed:", e);
+      this.status = "read-only";
+      this.errorMessage = e?.message ?? "substrate bootstrap failed";
       return;
     }
 
-    const doc = getDoc();
-    if (!doc) {
-      this.status = "error";
-      this.errorMessage = "Y.Doc unavailable";
-      return;
-    }
-    this._doc = doc;
+    const sem = wbSubstrate.transport.semantics();
+    this.status = sem.status;
+    this.tier = sem.tier;
 
-    // y-indexeddb's whenSynced + per-update flush drives the status
-    // pill. onIdbStatus fires once with the current state on register.
-    onIdbStatus((next, msg) => {
-      this.status = next;
-      if (next === "saved") this.lastSavedAt = Date.now();
-      if (next === "error") this.errorMessage = msg ?? "";
+    wbSubstrate.transport.onStatusChange?.((s) => {
+      this.status = s;
+      if (s === "saved-in-file") this.lastSavedAt = Date.now();
     });
 
-    // Override SDK's window.workbookSave (the FSA write path) with a
-    // toast-only confirmation: the browser's Cmd+S Save Page As is
-    // already intercepted by the SDK keydown handler and routes here.
-    // We keep the user-facing reassurance toast — it's a load-bearing
-    // signal that "your work is saved" without showing a stale dialog.
+    // Override SDK's window.workbookSave (the SDK's Cmd+S keydown
+    // forwards here). Our save = commitPatch through the substrate
+    // transport with the latest in-memory image.
     window.workbookSave = async () => {
-      console.log("[autosave] cmd-s intercepted → flushing y-indexeddb");
-      if (this._doc) await flushNow(this._doc, (s, m) => {
-        this.status = s;
-        if (s === "saved") this.lastSavedAt = Date.now();
-        if (s === "error") this.errorMessage = m ?? "";
-      });
-      showAutoSaveToast();
+      console.log("[autosave] cmd-s intercepted → substrate commitPatch");
+      try {
+        const result = await wbSubstrate.commitNow();
+        if (result.kind === "ok") {
+          this.status = "saved-in-file";
+          this.lastSavedAt = Date.now();
+          showAutoSaveToast("saved");
+        } else if (result.kind === "queued") {
+          // T4 path — surface the download CTA
+          showAutoSaveToast(result.reason ?? "queued — File → Save to download");
+        } else if (result.kind === "fingerprint-mismatch") {
+          this.errorMessage = "file changed externally; reload";
+          showAutoSaveToast("file changed externally — reload to merge");
+        } else if (result.kind === "error") {
+          this.errorMessage = result.message;
+          showAutoSaveToast(`error: ${result.message}`);
+        }
+      } catch (e) {
+        this.errorMessage = e?.message ?? String(e);
+        showAutoSaveToast(`save failed: ${this.errorMessage}`);
+      }
     };
   }
 
-  /** Used by File → Save and the menubar pill. Same effect as Cmd+S
-   *  — flush IDB now and show the toast. */
+  /** Used by File → Save and the menubar pill. Same effect as Cmd+S. */
   async saveNow() {
     if (typeof window.workbookSave === "function") {
       await window.workbookSave();
@@ -83,7 +81,7 @@ class AutoSaveStore {
 let _toastEl = null;
 let _toastTimer = null;
 
-function showAutoSaveToast() {
+function showAutoSaveToast(text) {
   if (typeof document === "undefined") return;
   if (!_toastEl) {
     _toastEl = document.createElement("div");
@@ -98,7 +96,7 @@ function showAutoSaveToast() {
       "pointer-events:none;z-index:2147483647;";
     document.body.appendChild(_toastEl);
   }
-  _toastEl.textContent = "saves automatically — your work is always persisted";
+  _toastEl.textContent = text;
   requestAnimationFrame(() => {
     _toastEl.style.opacity = "1";
     _toastEl.style.transform = "translateX(-50%) translateY(0)";

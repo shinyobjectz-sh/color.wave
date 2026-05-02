@@ -10,24 +10,20 @@
     "url": "https://github.com/shinyobjectz-sh/color.wave.git"
   },
   "homepage": "https://github.com/shinyobjectz-sh/color.wave",
-  "workspaces": [
-    "vendor/workbooks/packages/*"
-  ],
   "scripts": {
     "dev": "workbook dev",
-    "build": "workbook build",
-    "postinstall": "node scripts/fix-workbooks-symlink.mjs"
+    "build": "workbook build"
   },
   "dependencies": {
     "@noble/ed25519": "^3.1.0",
     "@noble/hashes": "^2.2.0",
     "@work.books/runtime": "workspace:*",
+    "@work.books/substrate": "workspace:*",
     "dompurify": "^3.4.2",
     "fflate": "^0.8.2",
     "just-bash": "^2.14.3",
     "svelte": "^5.0.0",
-    "yjs": "^13.6.0",
-    "y-indexeddb": "^9.0.0"
+    "yjs": "^13.6.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.0",

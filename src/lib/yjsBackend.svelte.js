@@ -62,18 +62,10 @@ export function bootstrapYjs() {
             : (typeof handle?.inner === "function" ? handle.inner() : null);
         if (inner instanceof Y.Doc) {
           _doc = inner;
-
-          // Attach y-indexeddb. Persisted state hydrates into _doc;
-          // every subsequent updateV2 streams to IDB automatically.
-          // (Pre-Phase-2 IDB state from the Loro era is left orphaned
-          // — pre-1.0 product, breaking change is acceptable.)
-          try {
-            const { setupIdbPersistence } = await import("./idbPersistence.svelte.js");
-            await setupIdbPersistence(_doc);
-          } catch (e) {
-            console.warn("[yjsBackend] idb provider failed:", e?.message ?? e);
-          }
-
+          // Substrate (file-as-database) bootstrap takes over from here.
+          // No IndexedDB attachment; persistence flows through
+          // substrateBackend.svelte.js → wbSubstrate.transport →
+          // commitPatch.
           return _doc;
         }
       }
