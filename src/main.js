@@ -30,6 +30,14 @@ import { loadRuntime } from "virtual:workbook-runtime";
 import { wbSubstrate } from "./lib/substrateBackend.svelte.js";
 import { autoSave } from "./lib/autoSave.svelte.js";
 import { maybeMountMigrationToast } from "./lib/legacyMigration.svelte.js";
+import { installLeakDefenses } from "@work.books/runtime/storage";
+
+// Install page-side leak defenses BEFORE any user code runs.
+// Patches console.* + window error handlers + global fetch so any
+// secret value that briefly transits through browser memory (e.g.
+// while the user is pasting a key into the Integrations modal)
+// can't leak to logs or cross-origin requests. Idempotent.
+installLeakDefenses();
 
 (async () => {
   try {

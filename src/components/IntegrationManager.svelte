@@ -28,6 +28,10 @@
   /** Set of secret ids the daemon currently has stored for this
    *  workbook. Refreshed on open + after each set/delete. */
   let configured = $state(/** @type {Set<string>} */ (new Set()));
+  /** Map of secret id → daemon-computed redacted preview ("fa••xyzy").
+   *  Lazily populated on open/refresh — daemon never returns the raw
+   *  value; the page never sees it. */
+  let previews = $state(/** @type {Record<string, string>} */ ({}));
   let busy = $state(false);
   let error = $state("");
 
@@ -67,6 +71,18 @@
       await migrateLegacyKeys();
       const ids = await wb.secret.list();
       configured = new Set(ids);
+      // Pull previews in parallel — best-effort; if any fails we
+      // silently fall back to the bullet-string default.
+      const next = {};
+      await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const masked = await wb.secret.preview(id);
+            if (masked) next[id] = masked;
+          } catch { /* ignore */ }
+        }),
+      );
+      previews = next;
     } catch (e) {
       error = e?.message ?? String(e);
     }
@@ -88,6 +104,13 @@
       await wb.secret.set(envKey, value.trim());
       configured = new Set([...configured, envKey]);
       pending[envKey] = "";
+      // Pull the daemon-computed preview ("fa••••xyzy") so the UI
+      // can confirm the right key landed without exposing the
+      // value to browser memory again.
+      try {
+        const masked = await wb.secret.preview(envKey);
+        if (masked) previews = { ...previews, [envKey]: masked };
+      } catch { /* ignore */ }
     } catch (e) {
       error = e?.message ?? String(e);
     }
@@ -102,6 +125,9 @@
       const next = new Set(configured);
       next.delete(envKey);
       configured = next;
+      const nextPreviews = { ...previews };
+      delete nextPreviews[envKey];
+      previews = nextPreviews;
     } catch (e) {
       error = e?.message ?? String(e);
     }
@@ -159,7 +185,9 @@
           <div class="flex flex-col gap-1 min-w-0 flex-1">
             <div class="flex items-baseline gap-2">
               <span class="text-[14px] font-medium">{it.name}</span>
-              {#if connected}
+              {#if connected && it.envKey && previews[it.envKey]}
+                <span class="text-[10px] font-mono text-accent">{previews[it.envKey]}</span>
+              {:else if connected}
                 <span class="text-[10px] text-accent">●</span>
               {/if}
             </div>
