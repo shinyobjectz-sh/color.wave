@@ -92,21 +92,31 @@
 </script>
 
 <section class="flex flex-col min-h-0 flex-1">
-  <div bind:this={scrollEl} class="flex-1 overflow-y-auto px-4 py-4 space-y-3 relative">
-    {#if agent.thread.length > 0 && !agent.busy}
-      <button
-        onclick={() => agent.clearThread()}
-        class="absolute top-2 right-3 z-10 px-2 py-0.5 rounded font-mono text-[10px] text-fg-faint hover:text-fg cursor-pointer"
-        title="Start a fresh thread (clears chat history; the composition + assets stay)"
-      >+ new thread</button>
-    {/if}
-    {#if agent.provider !== "builtin"}
-      <div class="absolute top-2 left-3 z-10 px-2 py-0.5 rounded font-mono text-[10px] text-accent border border-accent/40 bg-accent/5"
-           title={`Chat is running through your ${agent.provider === "claude" ? "Claude Code" : "Codex CLI"} subscription via ACP. Switch back in Manage → Agents.`}>
-        ● {agent.provider === "claude" ? "Claude Code" : "Codex"}
-      </div>
-    {/if}
+  <!-- Persistent header chrome: agent provider badge on the left,
+       new-thread action on the right. Lives outside the scroll area
+       so it stays visible as the thread grows and never overlaps
+       the first turn's content. -->
+  <header class="flex items-center justify-between gap-2 h-9 px-3 border-b border-border shrink-0">
+    <div class="flex items-center min-w-0">
+      {#if agent.provider !== "builtin"}
+        <div class="px-2 py-0.5 rounded font-mono text-[10px] text-accent border border-accent/40 bg-accent/5 truncate"
+             title={`Chat is running through your ${agent.provider === "claude" ? "Claude Code" : "Codex CLI"} subscription via ACP. Switch back in Manage → Agents.`}>
+          ● {agent.provider === "claude" ? "Claude Code" : "Codex"}
+        </div>
+      {/if}
+    </div>
+    <div class="flex items-center">
+      {#if agent.thread.length > 0 && !agent.busy}
+        <button
+          onclick={() => agent.clearThread()}
+          class="px-2 py-0.5 rounded font-mono text-[10px] text-fg-faint hover:text-fg cursor-pointer"
+          title="Start a fresh thread (clears chat history; the composition + assets stay)"
+        >+ new thread</button>
+      {/if}
+    </div>
+  </header>
 
+  <div bind:this={scrollEl} class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
     {#if !agent.thread.length && !agent.streaming}
       <div class="text-fg-muted text-sm px-1">
         Ask the agent to redesign, retime, or add a scene. The player rebuilds on every change.
