@@ -9,6 +9,7 @@
   import PluginManager from "./components/PluginManager.svelte";
   import SkillManager from "./components/SkillManager.svelte";
   import IntegrationManager from "./components/IntegrationManager.svelte";
+  import AgentManager from "./components/AgentManager.svelte";
   import HistoryModal from "./components/HistoryModal.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
@@ -25,6 +26,7 @@
   let pluginsOpen = $state(false);
   let skillsOpen = $state(false);
   let integrationsOpen = $state(false);
+  let agentsOpen = $state(false);
   let historyOpen = $state(false);
   let packaging = $state(false);
   let packageStatus = $state("");
@@ -143,6 +145,7 @@
       onPluginManager={() => pluginsOpen = true}
       onSkillManager={() => skillsOpen = true}
       onIntegrationManager={() => integrationsOpen = true}
+      onAgentManager={() => agentsOpen = true}
     />
 
     <span class="flex-1"></span>
@@ -223,6 +226,7 @@
 <PluginManager bind:open={pluginsOpen} />
 <SkillManager bind:open={skillsOpen} />
 <IntegrationManager bind:open={integrationsOpen} />
+<AgentManager bind:open={agentsOpen} />
 <HistoryModal bind:open={historyOpen} />
 
 <!-- Hidden file input for File > Open Project. Accepts hyperframe.html
