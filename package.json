@@ -1,6 +1,6 @@
 {
   "name": "colorwave",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "color.wave — a portable HTML AI video editor. One file, runs anywhere.",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "dev": "workbook dev",
-    "build": "workbook build && mv dist/colorwave.workbook.html dist/color.wave.html",
+    "build": "workbook build",
     "postinstall": "node scripts/fix-workbooks-symlink.mjs"
   },
   "dependencies": {

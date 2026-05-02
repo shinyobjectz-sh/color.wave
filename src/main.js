@@ -16,23 +16,19 @@
 // Wrapped in an async IIFE rather than top-level await so the
 // module evaluates without TLA semantics — vite-plugin-singlefile
 // flattens chunks in a way that interacts poorly with TLA wrappers.
+// Yjs MUST be on globalThis before `virtual:workbook-runtime` evaluates —
+// the runtime's yjsHost.ts reads `globalThis.__wb_yjs` at module init time
+// and throws if it's missing. Importing yjs-host.js as a side-effect (with
+// no value binding) makes the assignment run as part of the import phase,
+// BEFORE the imports below evaluate. A bare `globalThis.* =` in this file's
+// body would not, because ESM hoists imports above statements.
+import "./yjs-host.js";
+
 import { mount } from "svelte";
 import App from "./App.svelte";
 import { loadRuntime } from "virtual:workbook-runtime";
 import { bootstrapYjs } from "./lib/yjsBackend.svelte.js";
 import { autoSave } from "./lib/autoSave.svelte.js";
-// Static yjs import keeps the module init order stable through
-// vite-plugin-singlefile's flatten step. Same pattern that the
-// pre-Phase-2 build used for `loro-crdt`.
-//
-// Doubles as the canonical Y instance for the runtime bundle: the
-// runtime's yjsHost.ts reads `globalThis.__wb_yjs` instead of
-// importing "yjs" directly, so we have ONE Yjs across the host app
-// and the runtime. Without this, both sides would bundle their own
-// copy and `instanceof Y.Doc` would fail across the boundary
-// (https://github.com/yjs/yjs/issues/438).
-import * as Y from "yjs";
-globalThis.__wb_yjs = Y;
 
 (async () => {
   try {
