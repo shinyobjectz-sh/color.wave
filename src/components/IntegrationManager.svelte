@@ -65,10 +65,13 @@
         <button
           type="button"
           onclick={() => expanded[it.id] = !isOpen}
-          class="w-full flex items-center justify-between gap-4 px-5 py-4
+          class="w-full flex items-center gap-4 px-5 py-4
                  bg-transparent border-0 cursor-pointer text-left"
         >
-          <div class="flex flex-col gap-1 min-w-0">
+          {#if it.logo}
+            <img src={it.logo} alt="" class="w-9 h-9 shrink-0 rounded-md object-contain bg-bg/50 p-1" />
+          {/if}
+          <div class="flex flex-col gap-1 min-w-0 flex-1">
             <div class="flex items-baseline gap-2">
               <span class="text-[14px] font-medium">{it.name}</span>
               {#if connected}

@@ -14,6 +14,15 @@
 
 import { env } from "./env.svelte.js";
 
+// Logos vendored at build time (svgl.app for runway + huggingface,
+// each service's own /icon.svg or /apple-touch-icon for the rest).
+// Vite resolves `?url` to a string the <img> tag uses; the bytes get
+// inlined into the workbook by the singlefile build step.
+import falLogo from "../assets/integrations/fal-ai.png?url";
+import elevenLogo from "../assets/integrations/elevenlabs.svg?url";
+import runwayLogo from "../assets/integrations/runway.svg?url";
+import hfLogo from "../assets/integrations/huggingface.svg?url";
+
 /**
  * @typedef {object} Integration
  * @property {string} id           Stable id, matches src/skills/<id>/ dir.
@@ -37,6 +46,7 @@ export const INTEGRATIONS = [
     docsUrl: "https://fal.ai/dashboard/keys",
     envKey: "FAL_API_KEY",
     keyPrefix: "fal_…",
+    logo: falLogo,
     capabilities: [
       "image-to-video (Veo, Kling, MiniMax, Runway, Sora)",
       "text-to-image (Flux, SDXL, Imagen)",
@@ -51,6 +61,7 @@ export const INTEGRATIONS = [
     docsUrl: "https://elevenlabs.io/app/settings/api-keys",
     envKey: "ELEVENLABS_API_KEY",
     keyPrefix: "sk_…",
+    logo: elevenLogo,
     capabilities: [
       "text-to-speech in 30+ languages",
       "voice cloning from short audio samples",
@@ -65,6 +76,7 @@ export const INTEGRATIONS = [
     docsUrl: "https://app.runwayml.com/developer/api",
     envKey: "RUNWAY_API_KEY",
     keyPrefix: "key_…",
+    logo: runwayLogo,
     capabilities: [
       "Gen-3 Alpha / Gen-4 text-to-video and image-to-video",
       "lipsync to existing video with new audio",
@@ -78,6 +90,7 @@ export const INTEGRATIONS = [
     docsUrl: "https://huggingface.co/settings/tokens",
     envKey: "HUGGINGFACE_TOKEN",
     keyPrefix: "hf_… (optional)",
+    logo: hfLogo,
     capabilities: [
       "Inference API for any public model on the Hub",
       "Spaces API to call hosted demos",

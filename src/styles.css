@@ -1,5 +1,38 @@
 @import "tailwindcss";
 
+/* Custom scrollbars — match the zinc chrome so scrollboxes don't pop
+ * with platform-default chrome (white scrollbars on macOS Sonoma+,
+ * fat blue tracks on Windows). Applied globally so any scrollable
+ * surface — modals, panels, lists — inherits without per-element
+ * opt-in. Firefox uses `scrollbar-*` longhand; WebKit / Chromium use
+ * `::-webkit-scrollbar` pseudos. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-2) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-2);
+  border-radius: 999px;
+  /* Inset 2px border keeps the thumb visually thinner against any
+   * track color, without needing per-surface tweaks. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-fg-faint);
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 @theme {
   /* Strict monochromatic zinc palette — pure neutral gray, no blue
    * undertones. Chrome is intentionally neutral; only the composition
