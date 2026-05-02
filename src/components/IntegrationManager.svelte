@@ -38,9 +38,9 @@
   onkeydown={onKeydown}
   class="m-auto bg-surface text-fg rounded-xl border border-border shadow-2xl
          backdrop:bg-black/60 backdrop:backdrop-blur-sm
-         w-[min(640px,calc(100vw-32px))] h-[min(640px,calc(100vh-64px))] p-0
-         flex flex-col"
+         w-[min(640px,calc(100vw-32px))] h-[min(640px,calc(100vh-64px))] p-0"
 >
+ <div class="flex flex-col h-full">
   <header class="flex items-center justify-between px-6 py-4">
     <div class="flex flex-col gap-0.5">
       <h2 class="text-[15px] font-semibold leading-none m-0">Integrations</h2>
@@ -143,4 +143,5 @@
     {/each}
     </div>
   </Scrollbox>
+ </div>
 </dialog>
