@@ -11,6 +11,7 @@
    */
   import { env } from "../lib/env.svelte.js";
   import { INTEGRATIONS } from "../lib/integrations.svelte.js";
+  import Scrollbox from "./Scrollbox.svelte";
 
   let { open = $bindable(false) } = $props();
 
@@ -52,7 +53,8 @@
     >×</button>
   </header>
 
-  <div class="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-3">
+  <Scrollbox class="flex-1">
+    <div class="px-6 pb-6 flex flex-col gap-3">
     {#each INTEGRATIONS as it (it.id)}
       {@const value = it.envKey ? (env.values[it.envKey] ?? "") : ""}
       {@const connected = !it.envKey || Boolean(value.trim())}
@@ -139,5 +141,6 @@
         {/if}
       </div>
     {/each}
-  </div>
+    </div>
+  </Scrollbox>
 </dialog>

@@ -12,14 +12,20 @@
  * line, this whole block silently no-ops on macOS. (Firefox uses
  * the `scrollbar-*` longhand instead and ignores the WebKit pseudos.)
  */
-html, body, dialog, div, section, main, aside, ul, ol {
+/* Note: macOS Safari overlay scrollbars ignore ::-webkit-scrollbar
+ * styling, so for surfaces where the scrollbar must look custom
+ * (modals, panels) wrap content in <Scrollbox>. The rules below
+ * are a softening pass for surfaces that don't go through that
+ * component (the page-level scroll, dev tools, etc.) on browsers
+ * that DO honor the pseudos (Firefox via scrollbar-*, Chromium
+ * with non-overlay mode). They no-op on macOS Safari overlay. */
+html, body, div, section, main, aside, ul, ol, nav {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-2) transparent;
 }
 ::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -27,9 +33,7 @@ html, body, dialog, div, section, main, aside, ul, ol {
 ::-webkit-scrollbar-thumb {
   background-color: var(--color-border-2);
   border-radius: 999px;
-  /* Inset 3px transparent border keeps the thumb visually narrow
-   * against any track color, without needing per-surface tweaks. */
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   background-clip: padding-box;
   min-height: 24px;
 }
