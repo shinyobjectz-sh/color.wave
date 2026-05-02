@@ -181,11 +181,31 @@ export function buildTools() {
   ];
 }
 
+/** Active chat-agent backend. "builtin" runs the original
+ *  OpenRouter-via-bundle.runAgentLoop path; "claude" / "codex" run
+ *  the user's locally-installed Claude Code / Codex CLI through ACP
+ *  (subscription auth, not API key). Persisted in localStorage so
+ *  the choice survives reloads. */
+const PROVIDER_KEY = "wb.colorwave.agent.provider";
+const VALID_PROVIDERS = new Set(["builtin", "claude", "codex"]);
+function readProvider() {
+  try {
+    const v = localStorage.getItem(PROVIDER_KEY);
+    return VALID_PROVIDERS.has(v) ? v : "builtin";
+  } catch { return "builtin"; }
+}
+function writeProvider(v) {
+  try {
+    if (VALID_PROVIDERS.has(v)) localStorage.setItem(PROVIDER_KEY, v);
+  } catch { /* private mode */ }
+}
+
 class AgentStore {
   thread = $state([]);            // [{ role, segments }]
   streaming = $state(null);       // { segments } during a turn, else null
   busy = $state(false);
   hydrated = $state(false);
+  provider = $state(readProvider());
 
   // Track which turns have already been persisted so we only append
   // newly-completed ones rather than re-encoding the whole thread on
@@ -243,8 +263,17 @@ class AgentStore {
     clearTurns();
   }
 
+  setProvider(p) {
+    if (!VALID_PROVIDERS.has(p)) return;
+    this.provider = p;
+    writeProvider(p);
+  }
+
   async send(text) {
     if (!text.trim() || this.busy) return;
+    if (this.provider === "claude" || this.provider === "codex") {
+      return this._sendACP(text);
+    }
     if (!env.openrouterKey) return;
 
     const { bundle } = await getRuntime();
@@ -340,6 +369,111 @@ class AgentStore {
       // Persist after every completed turn (success OR error path).
       // The catch above appended an error-flavored assistant entry so
       // the thread shape is consistent at this point.
+      this._persist();
+    }
+  }
+
+  /**
+   * Send a turn through the user's local Claude Code / Codex CLI
+   * via ACP. Maps the agent's `session/update` stream onto the
+   * same `streaming.segments` shape the built-in path uses, so the
+   * chat UI doesn't have to know which provider rendered the
+   * response.
+   *
+   * Mapping:
+   *   agent_message_chunk{text}    → kind="text" segment (appended)
+   *   agent_thought_chunk{text}    → kind="text" segment, dimmed
+   *                                  prefix "(thought) "
+   *   tool_call / tool_call_update → kind="tool" segment
+   *   plan                         → kind="text" segment
+   *                                  (rendered as a checklist)
+   */
+  async _sendACP(text) {
+    const adapter = this.provider; // "claude" | "codex"
+    const { promptAcp } = await import("./acpAgent.svelte.js");
+
+    this.busy = true;
+    this.streaming = { segments: [] };
+    this.thread = [...this.thread, {
+      role: "user",
+      segments: [{ kind: "text", text }],
+    }];
+    this._persist();
+
+    let currentTextIdx = -1;
+    /** @type {Map<string, number>} tool-call id → segment index */
+    const toolIdx = new Map();
+
+    const onUpdate = (n) => {
+      const u = n?.update;
+      if (!u || typeof u.sessionUpdate !== "string") return;
+
+      switch (u.sessionUpdate) {
+        case "agent_message_chunk":
+        case "agent_thought_chunk": {
+          const delta = u.content?.text ?? "";
+          if (!delta) break;
+          const prefix = u.sessionUpdate === "agent_thought_chunk" ? "" : "";
+          const segs = this.streaming.segments.slice();
+          const last = segs[currentTextIdx];
+          if (currentTextIdx === -1 || !last || last.kind !== "text") {
+            currentTextIdx = segs.length;
+            segs.push({ kind: "text", text: prefix + delta });
+          } else {
+            segs[currentTextIdx] = { kind: "text", text: last.text + delta };
+          }
+          this.streaming = { segments: segs };
+          break;
+        }
+        case "tool_call":
+        case "tool_call_update": {
+          currentTextIdx = -1;
+          const id = u.toolCallId ?? u.id;
+          const summary = {
+            kind: "tool",
+            name: u.title ?? u.kind ?? "tool",
+            argumentsJson: typeof u.rawInput === "string"
+              ? u.rawInput
+              : JSON.stringify(u.rawInput ?? {}),
+            result: u.status === "completed"
+              ? (typeof u.rawOutput === "string"
+                ? u.rawOutput
+                : JSON.stringify(u.rawOutput ?? null))
+              : `(${u.status ?? "running"})`,
+          };
+          const segs = this.streaming.segments.slice();
+          if (id != null && toolIdx.has(id)) {
+            segs[toolIdx.get(id)] = summary;
+          } else {
+            const i = segs.length;
+            if (id != null) toolIdx.set(id, i);
+            segs.push(summary);
+          }
+          this.streaming = { segments: segs };
+          break;
+        }
+        default:
+          break;
+      }
+    };
+
+    try {
+      await promptAcp({ adapter, text, onUpdate });
+      this.thread = [...this.thread, {
+        role: "assistant",
+        segments: this.streaming.segments,
+      }];
+    } catch (err) {
+      const msg = err?.message ?? String(err);
+      const segs = [...this.streaming.segments, { kind: "text", text: `\n[acp error] ${msg}` }];
+      this.streaming = { segments: segs };
+      this.thread = [...this.thread, {
+        role: "assistant",
+        segments: this.streaming.segments,
+      }];
+    } finally {
+      this.streaming = null;
+      this.busy = false;
       this._persist();
     }
   }

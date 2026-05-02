@@ -18,6 +18,7 @@
   import { onMount } from "svelte";
   import { listAdapters, connect, AcpError } from "@work.books/runtime/agent-acp";
   import Scrollbox from "./Scrollbox.svelte";
+  import { agent } from "../lib/agent.svelte.js";
 
   let { open = $bindable(false) } = $props();
 
@@ -146,11 +147,27 @@
             </div>
 
             {#if ready}
+              {@const isActive = agent.provider === a.id}
+              <button
+                type="button"
+                onclick={() => agent.setProvider(isActive ? "builtin" : a.id)}
+                class="text-[11px] px-3 py-1.5 rounded-md cursor-pointer border shrink-0"
+                class:bg-accent={isActive}
+                class:text-accent-fg={isActive}
+                class:border-accent={isActive}
+                class:bg-transparent={!isActive}
+                class:text-fg-muted={!isActive}
+                class:border-border={!isActive}
+                title={isActive
+                  ? "Currently the chat agent. Click to fall back to the built-in agent."
+                  : `Use ${a.name} as the chat agent for this workbook.`}
+              >{isActive ? "✓ active" : "Use"}</button>
               <button
                 type="button"
                 onclick={() => testAdapter(a)}
                 disabled={!!testing[a.id]}
-                class="text-[12px] px-3 py-1.5 rounded-md bg-accent text-accent-fg cursor-pointer border-0 disabled:opacity-50 disabled:cursor-wait shrink-0"
+                class="text-[11px] px-3 py-1.5 rounded-md text-fg-muted hover:text-fg cursor-pointer bg-transparent border border-border disabled:opacity-50 disabled:cursor-wait shrink-0"
+                title="Open a session and run ACP `initialize` to verify the connection."
               >{testing[a.id] ? "testing…" : "Test"}</button>
             {/if}
           </div>

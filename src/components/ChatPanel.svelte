@@ -99,6 +99,12 @@
         title="Start a fresh thread (clears chat history; the composition + assets stay)"
       >+ new thread</button>
     {/if}
+    {#if agent.provider !== "builtin"}
+      <div class="absolute top-2 left-3 z-10 px-2 py-0.5 rounded font-mono text-[10px] text-accent border border-accent/40 bg-accent/5"
+           title={`Chat is running through your ${agent.provider === "claude" ? "Claude Code" : "Codex CLI"} subscription via ACP. Switch back in Manage → Agents.`}>
+        ● {agent.provider === "claude" ? "Claude Code" : "Codex"}
+      </div>
+    {/if}
 
     {#if !agent.thread.length && !agent.streaming}
       <div class="text-fg-muted text-sm px-1">
