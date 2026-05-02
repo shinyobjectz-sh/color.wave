@@ -2,24 +2,37 @@
 // (over their subscription) in place of colorwave's built-in
 // OpenRouter-driven loop.
 //
-// Architectural choice: the workbook's composition + skills are
-// projected as virtual files via the ACP `fs/*` client methods.
-// When the agent reads `/workbook/composition.html` it gets the
-// LIVE composition state from the running workbook, not a stale
-// extract. When it writes, the change goes through composition.set
-// — same path as the built-in agent uses, so the iframe player
-// updates immediately and Cmd+S persists.
+// Design (Phase 2-revised, May 2026):
 //
-// This means we don't need to extract files into the daemon's
-// scratch dir, don't need a file watcher, don't need a yjs decode
-// in Rust. The substrate stays the source of truth; the agent
-// just gets a virtual fs layered on top of it.
+// The underlying CLIs (claude, codex) use their OWN native Read /
+// Write / Bash / Edit tools, which hit the real filesystem. ACP's
+// `fs/read_text_file` / `fs/write_text_file` are client-side
+// methods but adapter shims do NOT surface them to the wrapped
+// agent as tools. So a virtualFs alone in the browser doesn't
+// expose anything to the agent.
 //
-// One ACP session is reused per (workbook, adapter) pair across
-// many user turns — `session/prompt` re-uses the established
-// session id.
+// The fix is bidirectional file sync between the workbook's live
+// state and the daemon's per-session scratch dir:
+//
+//   1. Before connecting, browser POSTs the workbook's logical
+//      files to /wb/<token>/agent/seed. Daemon writes them to the
+//      scratch dir as REAL files.
+//   2. Agent's cwd is the scratch dir, so its native Read /Bash
+//      tools find composition.html, skills/fal-ai/SKILL.md, etc.
+//   3. When the agent edits a file, the daemon's notify-rs
+//      watcher fires, coalesces the burst, and sends a
+//      _relay/file-changed notification over the WebSocket with
+//      the new content.
+//   4. Browser routes that notification to the right setter —
+//      composition.html lands via composition.set(), other paths
+//      are ignored (or read-only).
+//
+// Consequence: the substrate stays the source of truth, the agent
+// works on real files (so its native tools just work), and edits
+// flow live into the iframe player. Cmd+S persists via the
+// existing substrate flow.
 
-import { connect } from "@work.books/runtime/agent-acp";
+import { connect, seed } from "@work.books/runtime/agent-acp";
 import { composition } from "./composition.svelte.js";
 import { listSkillFiles, loadSkill } from "./skills.js";
 import { userSkills } from "./userSkills.svelte.js";
@@ -28,80 +41,98 @@ import { userSkills } from "./userSkills.svelte.js";
 let _session = null;
 let _adapter = null;
 let _sessionId = null;
-let _onSessionUpdate = null;
-
-function buildVirtualFs() {
-  /** @type {Record<string, import("@work.books/runtime/agent-acp").VirtualFsEntry>} */
-  const entries = {
-    // The composition is the workbook's primary editable surface.
-    // Read returns the live string from the composition store;
-    // write applies via composition.set, which fires the same
-    // substrate WAL + iframe-remount path the built-in agent uses.
-    "/workbook/composition.html": {
-      read: () => composition.html,
-      write: (next) => {
-        composition.set(typeof next === "string" ? next : "");
-      },
-    },
-    // Read-only meta — agents can grep the workbook's name + size.
-    "/workbook/meta.json": {
-      read: () =>
-        JSON.stringify(
-          {
-            name: "colorwave",
-            slug: "colorwave",
-            type: "spa",
-            composition_chars: composition.html.length,
-            clip_count: composition.clips?.length ?? 0,
-            duration_seconds: composition.totalDuration ?? 0,
-          },
-          null,
-          2,
-        ),
-    },
-  };
-  // Built-in skills (hyperframes, gsap, fal-ai, elevenlabs, ...).
-  for (const key of listSkillFiles()) {
-    const md = loadSkill(key);
-    if (typeof md === "string") {
-      entries[`/workbook/skills/${key}.md`] = { read: () => md };
-    }
-  }
-  // User-added skills from the SkillManager.
-  for (const us of userSkills.items ?? []) {
-    entries[`/workbook/skills/user/${us.name}.md`] = { read: () => us.content };
-  }
-  return { entries };
-}
 
 const SYSTEM_PROMPT = `\
 You are running inside the colorwave workbook — a single-file HyperFrames composition editor.
 
-The user's composition lives at /workbook/composition.html. Read or edit it via the ACP fs/read_text_file and fs/write_text_file methods (NOT via shell — those route through the workbook's substrate so the iframe player updates live and the user's ⌘S persists your edits).
+YOUR WORKING DIRECTORY (cwd) IS PRE-SEEDED with the workbook's logical files:
 
-Skills you can use:
-  /workbook/skills/hyperframes/SKILL.md       — main authoring rules
-  /workbook/skills/hyperframes/house-style.md — motion + sizing defaults
-  /workbook/skills/hyperframes/data-in-motion.md — stats / charts patterns
-  /workbook/skills/gsap/SKILL.md              — GSAP timeline patterns
-  /workbook/skills/fal-ai/SKILL.md            — image / video gen via fal.ai
-  /workbook/skills/elevenlabs/SKILL.md        — TTS / voice cloning
-  /workbook/skills/runway/SKILL.md            — Gen-3/4 video
-  /workbook/skills/huggingface/SKILL.md       — Inference API
+  composition.html              — the live composition. Edit this; the
+                                  user's iframe player updates immediately
+                                  and ⌘S persists.
+  meta.json                     — workbook metadata (size, clip count, etc.)
+  skills/<name>/SKILL.md        — authoring skills you can read for guidance:
+                                    skills/hyperframes/SKILL.md
+                                    skills/hyperframes/house-style.md
+                                    skills/hyperframes/data-in-motion.md
+                                    skills/gsap/SKILL.md
+                                    skills/fal-ai/SKILL.md
+                                    skills/elevenlabs/SKILL.md
+                                    skills/runway/SKILL.md
+                                    skills/huggingface/SKILL.md
 
-For external API calls (fal, ElevenLabs, etc.) the user has stored their keys in the OS keychain; the daemon proxies. The skills tell you the wb-fetch invocation shape — but you are running as Claude Code / Codex with REAL bash, so where the skill says "wb-fetch" you can use real curl with the keychain-stored value… EXCEPT the value lives in the daemon, not your environment. Phase 3 of the secrets work will expose those via a dedicated tool; for now, prefer composition edits over network calls.
+Use your native Read / Write / Edit / Bash tools normally — these are real
+files on disk. When you write to composition.html, the daemon watches and
+streams the change live into the workbook so the user sees the result in
+the player as you save.
 
-Default to small, surgical changes. Pull the composition first, plan your edit, write back.\
+For external API calls (fal, ElevenLabs, etc.) the user has stored their
+keys in the OS keychain. The skills describe the wb-fetch invocation shape.
+This connection has real bash + real curl available, but the keys aren't in
+your env — they're daemon-side. Phase 5 of the secrets work will expose a
+small fetch tool that proxies through the daemon. For now, prefer
+composition edits over network calls; for tasks that require network,
+tell the user what you'd do and ask them to run it manually.
+
+Default to small, surgical changes. Read composition.html first, plan the
+edit, write it back. Don't rewrite the whole file when patching one scene.\
 `;
+
+/** Build the seed map: workbook's logical files → string contents.
+ *  Sent to the daemon at session start and materialized into the
+ *  scratch dir as real files. */
+function buildSeedFiles() {
+  /** @type {Record<string, string>} */
+  const files = {
+    "composition.html": composition.html,
+    "meta.json": JSON.stringify(
+      {
+        name: "colorwave",
+        slug: "colorwave",
+        type: "spa",
+        composition_chars: composition.html.length,
+        clip_count: composition.clips?.length ?? 0,
+        duration_seconds: composition.totalDuration ?? 0,
+      },
+      null,
+      2,
+    ),
+  };
+  for (const key of listSkillFiles()) {
+    const md = loadSkill(key);
+    if (typeof md === "string") {
+      files[`skills/${key}.md`] = md;
+    }
+  }
+  for (const us of userSkills.items ?? []) {
+    files[`skills/user/${us.name}.md`] = us.content;
+  }
+  return files;
+}
+
+/** When the watcher reports a scratch file changed, route into the
+ *  workbook's state. Today: composition.html flows back into the
+ *  composition store. Other paths are ignored — Phase 4 will add
+ *  asset round-trip (binary files via a separate channel). */
+function applyFileChange(notification) {
+  const { path, content } = notification;
+  if (!path) return;
+  if (path === "composition.html") {
+    if (typeof content === "string" && content !== composition.html) {
+      composition.set(content);
+    }
+    return;
+  }
+  // Skills are agent-readable but not agent-writable in this phase.
+  // Any other paths are ignored: we don't want a stray `npm install`
+  // dropping node_modules into our state surface.
+}
 
 async function ensureSession(adapter, onSessionUpdate) {
   if (_session && _adapter === adapter) {
-    // Re-bind the update callback in case the chat panel mounted
-    // a new agent store instance.
-    _onSessionUpdate = onSessionUpdate;
     _session.setHooks({
-      virtualFs: buildVirtualFs(),
       onSessionUpdate,
+      onFileChanged: applyFileChange,
     });
     return _session;
   }
@@ -112,51 +143,51 @@ async function ensureSession(adapter, onSessionUpdate) {
     _sessionId = null;
   }
 
+  // Seed the scratch dir BEFORE the WebSocket upgrade so the
+  // adapter's spawn finds files already in place.
+  await seed({ files: buildSeedFiles() });
+
   const session = await connect({
     adapter,
     hooks: {
-      virtualFs: buildVirtualFs(),
       onSessionUpdate,
+      onFileChanged: applyFileChange,
     },
   });
-  _onSessionUpdate = onSessionUpdate;
 
   await session.initialize();
-  const newSess = await session.newSession({ cwd: "/", mcpServers: [] });
+  const newSess = await session.newSession({ cwd: ".", mcpServers: [] });
   _session = session;
   _adapter = adapter;
   _sessionId = newSess.sessionId;
   return session;
 }
 
-/** Send a user message through the ACP session.
- *
- *  @param {object} args
- *  @param {"claude"|"codex"} args.adapter Which CLI to run.
- *  @param {string} args.text User's message.
- *  @param {(n: import("@work.books/runtime/agent-acp").SessionNotification) => void} args.onUpdate
- *      Callback for streaming text deltas / tool call updates.
- *  @returns {Promise<{stopReason: string}>}
- */
+const _systemSeeded = new Set();
+
+/** Send a user message through the ACP session. */
 export async function promptAcp({ adapter, text, onUpdate }) {
-  // Capture the original system prompt as the FIRST turn — ACP
-  // sessions don't expose a "system" role directly; the convention
-  // is to send a leading user message containing setup. Subsequent
-  // turns just send the user text.
   const session = await ensureSession(adapter, onUpdate);
   const prompt = [{ type: "text", text }];
 
-  // We send the system context only on the first turn of a new
-  // session. Once we have a sessionId already, subsequent prompts
-  // skip it.
-  const isFirstTurn = !_systemSeeded.has(_sessionId);
-  if (isFirstTurn) {
+  // Seed the system context only on the first turn of a fresh session.
+  // Subsequent turns reuse the same sessionId — Claude / Codex carry
+  // the prior turn's system message via their session memory.
+  if (!_systemSeeded.has(_sessionId)) {
     _systemSeeded.add(_sessionId);
     prompt.unshift({
       type: "text",
       text: `<workbook-context>\n${SYSTEM_PROMPT}\n</workbook-context>\n\n`,
     });
   }
+
+  // Refresh the seed before each turn so the agent sees the user's
+  // most recent composition state (e.g. they dragged a clip
+  // between turns). The daemon overwrites the existing scratch
+  // file in place; if the agent's mid-turn it might race, but
+  // that's an edge case we'll address with proper diff-based
+  // sync in a later phase.
+  try { await seed({ files: buildSeedFiles() }); } catch { /* best-effort */ }
 
   const result = await session.prompt({
     sessionId: _sessionId,
@@ -165,8 +196,6 @@ export async function promptAcp({ adapter, text, onUpdate }) {
   return result;
 }
 
-const _systemSeeded = new Set();
-
 /** Cancel the in-flight prompt, if any. */
 export function cancelAcp() {
   if (_session && _sessionId) {
@@ -174,15 +203,13 @@ export function cancelAcp() {
   }
 }
 
-/** Tear down the ACP connection. The user explicitly switched
- *  providers or closed the workbook. */
+/** Tear down the ACP connection. */
 export function closeAcp() {
   if (_session) {
     try { _session.close(); } catch {}
     _session = null;
     _sessionId = null;
     _adapter = null;
-    _onSessionUpdate = null;
     _systemSeeded.clear();
   }
 }
