@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import ToolStep from "./ToolStep.svelte";
+  import PermissionRequest from "./PermissionRequest.svelte";
   import { agent } from "../lib/agent.svelte.js";
   import { env } from "../lib/env.svelte.js";
   import {
@@ -143,6 +144,12 @@
         </div>
       {/if}
     {/each}
+
+    <!-- Pending ACP permission requests (claude/codex asking to run
+         a Bash command, write outside the seeded scratch dir, etc.).
+         Renders zero or more inline cards between the last turn and
+         the streaming bubble. Built-in agent doesn't fire these. -->
+    <PermissionRequest />
 
     {#if agent.streaming}
       <div class="agent-turn space-y-2 px-1">

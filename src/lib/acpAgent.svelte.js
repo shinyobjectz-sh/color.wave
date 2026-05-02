@@ -34,8 +34,13 @@
 
 import { connect, seed } from "@work.books/runtime/agent-acp";
 import { composition } from "./composition.svelte.js";
+import { assets } from "./assets.svelte.js";
 import { listSkillFiles, loadSkill } from "./skills.js";
 import { userSkills } from "./userSkills.svelte.js";
+import {
+  request as requestPermission,
+  clearAll as clearAllPermissions,
+} from "./acpPermissions.svelte.js";
 
 /** @type {import("@work.books/runtime/agent-acp").AcpSession | null} */
 let _session = null;
@@ -111,21 +116,61 @@ function buildSeedFiles() {
 }
 
 /** When the watcher reports a scratch file changed, route into the
- *  workbook's state. Today: composition.html flows back into the
- *  composition store. Other paths are ignored — Phase 4 will add
- *  asset round-trip (binary files via a separate channel). */
+ *  workbook's state.
+ *  - composition.html → composition store
+ *  - binary media files dropped by the agent (the cwd it sees is
+ *    the scratch dir; tools that produce PNG/WAV/MP4 land them
+ *    here) → asset store as base64 data URLs
+ *  - everything else is ignored so a stray `npm install` can't
+ *    pollute state. */
 function applyFileChange(notification) {
-  const { path, content } = notification;
+  const { path, binary, content, content_b64, mime, size } = notification;
   if (!path) return;
+
   if (path === "composition.html") {
     if (typeof content === "string" && content !== composition.html) {
       composition.set(content);
     }
     return;
   }
+
+  // Binary asset round-trip. The agent's tool wrote a PNG / WAV /
+  // MP4 / etc. into its cwd; rebuild a Blob from the base64 and let
+  // the asset store handle classification + duration probing +
+  // dataUrl conversion. Path is preserved as the asset's name so
+  // the agent can subsequently reference it (a follow-up turn that
+  // edits composition.html with the same filename will Just Work).
+  if (binary === true && typeof content_b64 === "string") {
+    if (typeof size === "number" && size > 50 * 1024 * 1024) {
+      console.warn(`[acp] skipping oversized binary asset ${path} (${size} bytes)`);
+      return;
+    }
+    const mimeStr = mime || "application/octet-stream";
+    if (!/^(image|audio|video)\//.test(mimeStr) && mimeStr !== "image/svg+xml") {
+      // Unsupported binary kind — don't pollute the asset library
+      // with random binary blobs the agent leaves around.
+      return;
+    }
+    try {
+      const bin = atob(content_b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const blob = new Blob([u8], { type: mimeStr });
+      // Mirror a File so addFromFile's `file.name` / `.type` lookups
+      // work (Blob alone doesn't expose name).
+      const fname = path.split("/").pop() || path;
+      const file = new File([blob], fname, { type: mimeStr });
+      assets.addFromFile(file).catch((e) => {
+        console.warn(`[acp] addFromFile failed for ${path}:`, e?.message ?? e);
+      });
+    } catch (e) {
+      console.warn(`[acp] base64 decode failed for ${path}:`, e?.message ?? e);
+    }
+    return;
+  }
+
   // Skills are agent-readable but not agent-writable in this phase.
-  // Any other paths are ignored: we don't want a stray `npm install`
-  // dropping node_modules into our state surface.
+  // Any other text path is ignored.
 }
 
 async function ensureSession(adapter, onSessionUpdate) {
@@ -141,6 +186,10 @@ async function ensureSession(adapter, onSessionUpdate) {
     try { _session.close(); } catch {}
     _session = null;
     _sessionId = null;
+    // Cancel any outstanding permission prompts from the prior
+    // session so they don't dangle in the UI when the user switches
+    // adapters mid-thread.
+    clearAllPermissions();
   }
 
   // Seed the scratch dir BEFORE the WebSocket upgrade so the
@@ -152,6 +201,11 @@ async function ensureSession(adapter, onSessionUpdate) {
     hooks: {
       onSessionUpdate,
       onFileChanged: applyFileChange,
+      // Surfaces session/request_permission as an inline chat card
+      // instead of auto-approving the first option (the SDK default).
+      // The Promise here is what the SDK forwards back to the
+      // adapter — it doesn't resolve until the user clicks.
+      onRequestPermission: requestPermission,
     },
   });
 
@@ -211,5 +265,6 @@ export function closeAcp() {
     _sessionId = null;
     _adapter = null;
     _systemSeeded.clear();
+    clearAllPermissions();
   }
 }

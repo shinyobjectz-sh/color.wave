@@ -46,6 +46,7 @@
     onSkillManager?: () => void;
     onIntegrationManager?: () => void;
     onAgentManager?: () => void;
+    onPermissionsManager?: () => void;
   };
 
   let {
@@ -61,6 +62,7 @@
     onSkillManager,
     onIntegrationManager,
     onAgentManager,
+    onPermissionsManager,
   }: Props = $props();
 
   // Active dropdown — null when no menu is open.
@@ -102,6 +104,7 @@
         { kind: "item", label: "Skills…",       onSelect: () => onSkillManager?.(),       disabled: !onSkillManager },
         { kind: "item", label: "Integrations…", onSelect: () => onIntegrationManager?.(), disabled: !onIntegrationManager },
         { kind: "item", label: "Agents…",       onSelect: () => onAgentManager?.(),       disabled: !onAgentManager },
+        { kind: "item", label: "Permissions…",  onSelect: () => onPermissionsManager?.(),  disabled: !onPermissionsManager },
       ],
     },
   ]);

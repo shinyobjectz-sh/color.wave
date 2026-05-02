@@ -11,6 +11,7 @@
   import IntegrationManager from "./components/IntegrationManager.svelte";
   import AgentManager from "./components/AgentManager.svelte";
   import PermissionsDialog from "./components/PermissionsDialog.svelte";
+  import { permissionsPanel } from "./lib/permissionsPanel.svelte.js";
   import HistoryModal from "./components/HistoryModal.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
@@ -147,6 +148,7 @@
       onSkillManager={() => skillsOpen = true}
       onIntegrationManager={() => integrationsOpen = true}
       onAgentManager={() => agentsOpen = true}
+      onPermissionsManager={() => permissionsPanel.open = true}
     />
 
     <span class="flex-1"></span>
