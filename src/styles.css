@@ -1,16 +1,23 @@
 @import "tailwindcss";
 
 /* Custom scrollbars — match the zinc chrome so scrollboxes don't pop
- * with platform-default chrome (white scrollbars on macOS Sonoma+,
- * fat blue tracks on Windows). Applied globally so any scrollable
+ * with platform defaults (translucent overlay bars on macOS, chunky
+ * blue tracks on Windows). Applied globally so any scrollable
  * surface — modals, panels, lists — inherits without per-element
- * opt-in. Firefox uses `scrollbar-*` longhand; WebKit / Chromium use
- * `::-webkit-scrollbar` pseudos. */
+ * opt-in.
+ *
+ * macOS gotcha: Chromium / Safari ship "overlay" scrollbars by
+ * default that auto-hide AND ignore ::-webkit-scrollbar custom
+ * styling unless we set `-webkit-appearance: none`. Without that
+ * line, this whole block silently no-ops on macOS. (Firefox uses
+ * the `scrollbar-*` longhand instead and ignores the WebKit pseudos.)
+ */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-2) transparent;
 }
 *::-webkit-scrollbar {
+  -webkit-appearance: none;
   width: 10px;
   height: 10px;
 }
@@ -20,8 +27,8 @@
 *::-webkit-scrollbar-thumb {
   background-color: var(--color-border-2);
   border-radius: 999px;
-  /* Inset 2px border keeps the thumb visually thinner against any
-   * track color, without needing per-surface tweaks. */
+  /* Inset 2px transparent border keeps the thumb visually thinner
+   * against any track color, without needing per-surface tweaks. */
   border: 2px solid transparent;
   background-clip: content-box;
 }
