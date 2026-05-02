@@ -17,10 +17,34 @@
    */
   import { onMount } from "svelte";
   import { listAdapters, connect, AcpError } from "@work.books/runtime/agent-acp";
+  import { iconUrl } from "@work.books/runtime/storage";
   import Scrollbox from "./Scrollbox.svelte";
   import { agent } from "../lib/agent.svelte.js";
 
   let { open = $bindable(false) } = $props();
+
+  /** Synthetic "Native" entry — colorwave's built-in agent loop.
+   *  Same shape as a real ACP adapter so the UI can render it
+   *  uniformly. Marked recommended/default; clicking "Use" sets
+   *  agent.provider = "builtin". */
+  const NATIVE_ENTRY = {
+    id: "native",
+    name: "Workbooks (built-in)",
+    cliInstalled: true,
+    cliVersion: "default",
+    authPresent: true,
+    npxAvailable: true,
+    spawnCommand: [],
+    hint: null,
+    isNative: true,
+    providerKey: "builtin",
+    iconKey: "native",
+  };
+
+  /** Adapter id → daemon-served icon key. We could derive from a
+   *  registry, but explicit mapping is fine for the small set we
+   *  ship today. */
+  const ICON_KEY = { claude: "claude", codex: "codex" };
 
   let dialogEl;
   let adapters = $state(/** @type {Array<any>} */ ([]));
@@ -35,7 +59,15 @@
     busy = true;
     listError = "";
     try {
-      adapters = await listAdapters();
+      const acp = await listAdapters();
+      // Native always first (recommended default), then ACP
+      // adapters in the order the daemon returned them.
+      adapters = [NATIVE_ENTRY, ...acp.map((a) => ({
+        ...a,
+        isNative: false,
+        providerKey: a.id,            // "claude" / "codex"
+        iconKey: ICON_KEY[a.id] ?? null,
+      }))];
     } catch (e) {
       listError = e?.message ?? String(e);
     }
@@ -117,40 +149,48 @@
       {#each adapters as a (a.id)}
         {@const result = testResults[a.id]}
         {@const ready = a.cliInstalled && a.authPresent && a.npxAvailable}
+        {@const isActive = agent.provider === a.providerKey}
         <div class="rounded-lg border"
-             class:border-border={!ready}
-             class:border-accent={ready}>
+             class:border-border={!ready && !isActive}
+             class:border-accent={ready || isActive}>
           <div class="flex items-center gap-4 px-5 py-4">
+            {#if a.iconKey}
+              {@const src = iconUrl(a.iconKey)}
+              {#if src}
+                <img src={src} alt="" class="w-9 h-9 shrink-0 rounded-md object-contain bg-bg/50 p-1" />
+              {/if}
+            {/if}
             <div class="flex-1 flex flex-col gap-1 min-w-0">
               <div class="flex items-baseline gap-2">
                 <span class="text-[14px] font-medium">{a.name}</span>
-                {#if ready}
+                {#if a.isNative}
+                  <span class="text-[10px] text-fg-muted font-mono">recommended</span>
+                {:else if ready}
                   <span class="text-[10px] text-accent font-mono">ready</span>
                 {:else}
                   <span class="text-[10px] text-fg-faint font-mono">not ready</span>
                 {/if}
-                {#if a.cliVersion}
+                {#if !a.isNative && a.cliVersion}
                   <span class="text-[10px] text-fg-faint font-mono">{a.cliVersion}</span>
                 {/if}
               </div>
-              <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-muted">
-                <span>
-                  cli {a.cliInstalled ? "✓" : "✗"}
-                </span>
-                <span>
-                  signed in {a.authPresent ? "✓" : "✗"}
-                </span>
-                <span>
-                  npx {a.npxAvailable ? "✓" : "✗"}
-                </span>
-              </div>
+              {#if a.isNative}
+                <div class="text-[11px] text-fg-muted">
+                  Built into the workbook. Uses your OpenRouter key.
+                </div>
+              {:else}
+                <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-muted">
+                  <span>cli {a.cliInstalled ? "✓" : "✗"}</span>
+                  <span>signed in {a.authPresent ? "✓" : "✗"}</span>
+                  <span>npx {a.npxAvailable ? "✓" : "✗"}</span>
+                </div>
+              {/if}
             </div>
 
             {#if ready}
-              {@const isActive = agent.provider === a.id}
               <button
                 type="button"
-                onclick={() => agent.setProvider(isActive ? "builtin" : a.id)}
+                onclick={() => agent.setProvider(isActive ? "builtin" : a.providerKey)}
                 class="text-[11px] px-3 py-1.5 rounded-md cursor-pointer border shrink-0"
                 class:bg-accent={isActive}
                 class:text-accent-fg={isActive}
@@ -159,16 +199,18 @@
                 class:text-fg-muted={!isActive}
                 class:border-border={!isActive}
                 title={isActive
-                  ? "Currently the chat agent. Click to fall back to the built-in agent."
+                  ? `Currently active. Click to switch.`
                   : `Use ${a.name} as the chat agent for this workbook.`}
               >{isActive ? "✓ active" : "Use"}</button>
-              <button
-                type="button"
-                onclick={() => testAdapter(a)}
-                disabled={!!testing[a.id]}
-                class="text-[11px] px-3 py-1.5 rounded-md text-fg-muted hover:text-fg cursor-pointer bg-transparent border border-border disabled:opacity-50 disabled:cursor-wait shrink-0"
-                title="Open a session and run ACP `initialize` to verify the connection."
-              >{testing[a.id] ? "testing…" : "Test"}</button>
+              {#if !a.isNative}
+                <button
+                  type="button"
+                  onclick={() => testAdapter(a)}
+                  disabled={!!testing[a.id]}
+                  class="text-[11px] px-3 py-1.5 rounded-md text-fg-muted hover:text-fg cursor-pointer bg-transparent border border-border disabled:opacity-50 disabled:cursor-wait shrink-0"
+                  title="Open a session and run ACP `initialize` to verify the connection."
+                >{testing[a.id] ? "testing…" : "Test"}</button>
+              {/if}
             {/if}
           </div>
 

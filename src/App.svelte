@@ -10,6 +10,7 @@
   import SkillManager from "./components/SkillManager.svelte";
   import IntegrationManager from "./components/IntegrationManager.svelte";
   import AgentManager from "./components/AgentManager.svelte";
+  import PermissionsDialog from "./components/PermissionsDialog.svelte";
   import HistoryModal from "./components/HistoryModal.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
@@ -227,6 +228,7 @@
 <SkillManager bind:open={skillsOpen} />
 <IntegrationManager bind:open={integrationsOpen} />
 <AgentManager bind:open={agentsOpen} />
+<PermissionsDialog />
 <HistoryModal bind:open={historyOpen} />
 
 <!-- Hidden file input for File > Open Project. Accepts hyperframe.html
