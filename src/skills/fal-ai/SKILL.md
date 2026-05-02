@@ -6,19 +6,29 @@ description: Call fal.ai's hosted inference API for image, video, and audio mode
 # fal.ai
 
 fal.ai exposes hundreds of models behind a single REST API. The user
-configured their API key in the Integrations panel; it's available to
-your bash sandbox as `$FAL_API_KEY`.
+configured their API key in File → Integrations; it lives in the OS
+keychain (NOT in any env var, NOT in the workbook file). You access
+it only by naming the secret id `FAL_API_KEY` in `wb-fetch` — the
+daemon splices the header, makes the call, and returns the response.
+You never see the key value.
 
-If `$FAL_API_KEY` is empty, tell the user to open File → Integrations
-and paste their key — never invent or hardcode one.
+If the call fails with `secret 'FAL_API_KEY' not set for this
+workbook`, tell the user to open File → Integrations and paste their
+key. Don't try to invent one or look elsewhere — the daemon is the
+only source of truth for secrets.
 
-## Auth
+## Auth pattern
+
+Every fal endpoint uses `Authorization: Key <FAL_API_KEY>`:
 
 ```bash
-curl -s -H "Authorization: Key $FAL_API_KEY" \
-     -H "Content-Type: application/json" \
-     https://queue.fal.run/<model-id>
+wb-fetch --secret=FAL_API_KEY --auth-format='Key {value}' \
+  -X POST 'https://queue.fal.run/<model-id>' \
+  -H 'Content-Type: application/json' \
+  -d '{...}'
 ```
+
+(`--auth-header` defaults to `Authorization`, so omit it for fal.)
 
 ## Common video-editing models
 
@@ -33,46 +43,48 @@ curl -s -H "Authorization: Key $FAL_API_KEY" \
 | sound effect              | `fal-ai/mmaudio-v2`                |
 
 Browse the catalog at https://fal.ai/models — each model page shows
-the exact request schema and a "Try it" curl example.
+the exact request schema.
 
 ## Calling pattern (queue API)
 
-fal's queue API is async — submit a job, poll, then fetch the result:
+fal's queue API is async — submit, poll status, fetch result:
 
 ```bash
 # 1. Submit
-JOB=$(curl -s -X POST "https://queue.fal.run/fal-ai/kling-video/v2/standard/image-to-video" \
-  -H "Authorization: Key $FAL_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "<your prompt>",
-    "image_url": "<https url to the source frame>"
-  }')
+wb-fetch --secret=FAL_API_KEY --auth-format='Key {value}' \
+  -X POST 'https://queue.fal.run/fal-ai/kling-video/v2/standard/image-to-video' \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"<your prompt>","image_url":"<https url>"}' \
+  > /tmp/fal-submit.json
 
-REQUEST_ID=$(echo "$JOB" | jq -r '.request_id')
+REQUEST_ID=$(jq -r .request_id /tmp/fal-submit.json)
+URL_BASE='https://queue.fal.run/fal-ai/kling-video/v2/standard/image-to-video'
 
-# 2. Poll until status is COMPLETED (typically 30s–5m for video)
+# 2. Poll
 while :; do
-  S=$(curl -s -H "Authorization: Key $FAL_API_KEY" \
-    "https://queue.fal.run/fal-ai/kling-video/v2/standard/image-to-video/requests/$REQUEST_ID/status" \
-    | jq -r '.status')
+  wb-fetch --secret=FAL_API_KEY --auth-format='Key {value}' \
+    "$URL_BASE/requests/$REQUEST_ID/status" > /tmp/fal-status.json
+  S=$(jq -r .status /tmp/fal-status.json)
   [ "$S" = "COMPLETED" ] && break
-  [ "$S" = "FAILED" ] && { echo "fal job failed"; exit 1; }
+  [ "$S" = "FAILED" ] && { cat /tmp/fal-status.json; exit 1; }
   sleep 5
 done
 
-# 3. Fetch result
-RESULT=$(curl -s -H "Authorization: Key $FAL_API_KEY" \
-  "https://queue.fal.run/fal-ai/kling-video/v2/standard/image-to-video/requests/$REQUEST_ID")
-VIDEO_URL=$(echo "$RESULT" | jq -r '.video.url')
+# 3. Fetch + download the result video into the workbook's assets dir
+wb-fetch --secret=FAL_API_KEY --auth-format='Key {value}' \
+  "$URL_BASE/requests/$REQUEST_ID" > /tmp/fal-result.json
+VIDEO_URL=$(jq -r '.video.url' /tmp/fal-result.json)
 
-# 4. Download the asset and add it to the workbook
-curl -sL "$VIDEO_URL" -o /workbook/assets/generated.mp4
+# Public CDN URL — no auth needed, no --secret.
+wb-fetch -o /workbook/assets/generated.mp4 "$VIDEO_URL"
 ```
+
+`-o /path` writes the response body to the bash VFS — handles binary
+correctly so `.mp4` / `.png` round-trip cleanly into `/workbook/assets/`.
 
 ## Notes
 
-- All fal endpoints accept HTTPS image URLs OR base64 data URIs.
-- For models that take an `image_url`, you can host the source asset
-  by encoding it as a data URI; no external upload needed.
-- Costs vary by model; check the model page before kicking off long jobs.
+- `wb-fetch` only allows HTTPS URLs. Plaintext is refused at the
+  daemon.
+- Costs vary by model; check the model page before kicking off long
+  jobs. Tell the user the expected cost before spending.

@@ -74,34 +74,13 @@ export default {
       required: true,
       secret: true,
     },
-    // Integrations — optional. Surfaced via the Integrations modal
-    // (File menu). Stored in browser localStorage, never written
-    // into the .workbook.html (so sharing the file doesn't leak
-    // your keys). Each enables the matching skill so the agent
-    // can use bash to call the service's HTTPS API.
-    FAL_API_KEY: {
-      label: "fal.ai api key",
-      prompt: "fal_…",
-      required: false,
-      secret: true,
-    },
-    ELEVENLABS_API_KEY: {
-      label: "elevenlabs api key",
-      prompt: "sk_…",
-      required: false,
-      secret: true,
-    },
-    RUNWAY_API_KEY: {
-      label: "runway api key",
-      prompt: "key_…",
-      required: false,
-      secret: true,
-    },
-    HUGGINGFACE_TOKEN: {
-      label: "huggingface token (optional — gated models / higher limits)",
-      prompt: "hf_…",
-      required: false,
-      secret: true,
-    },
+    // Integration keys (FAL / ELEVENLABS / RUNWAY / HUGGINGFACE) used
+    // to live here as env declarations stored in localStorage. They
+    // moved to the daemon-side keychain in v0.4 — see
+    // src/components/IntegrationManager.svelte and the wb.secret SDK.
+    // Don't add new integration keys here; declare them in
+    // src/lib/integrations.svelte.js's INTEGRATIONS array, which
+    // tells the modal which keys to collect and the daemon where
+    // to store them.
   },
 };

@@ -1,15 +1,19 @@
 <script>
   /**
    * Integration Manager — paste API keys for fal.ai / ElevenLabs /
-   * Runway / HuggingFace. Keys live in browser localStorage (via
-   * env.svelte.js's standard envKey path) and never get serialized
-   * into the .workbook.html file. Sharing the file is safe.
+   * Runway / HuggingFace. Keys live in the OS keychain via workbooksd
+   * (see vendor/workbooks/packages/workbooksd/src/main.rs:secret/*),
+   * never in browser localStorage. Sharing the .workbook.html file
+   * never carries the keys (they're not in the file at all), and
+   * other workbooks served by the same daemon CAN'T read them
+   * (token-→-path scoping enforces that).
    *
    * Each card has a single CTA (Connect / Manage). Card flips inline
-   * to reveal the key field and per-service capabilities — no nested
-   * modals, no jammed metadata.
+   * to reveal a write-only key field — once set, the value isn't
+   * read back to the browser; users see "connected" and can rotate
+   * by overwriting or clear with the Clear button.
    */
-  import { env } from "../lib/env.svelte.js";
+  import { wb } from "@work.books/runtime/storage";
   import { INTEGRATIONS } from "../lib/integrations.svelte.js";
   import Scrollbox from "./Scrollbox.svelte";
 
@@ -18,14 +22,91 @@
   let dialogEl;
   /** Map of integration.id → "expanded" boolean. Click a card to flip. */
   let expanded = $state(/** @type {Record<string, boolean>} */ ({}));
-  /** Map of integration.id → "key visible" boolean for the input. */
-  let reveal = $state(/** @type {Record<string, boolean>} */ ({}));
+  /** Map of integration.id → string the user is typing (write-only;
+   *  cleared once we POST to the daemon). */
+  let pending = $state(/** @type {Record<string, string>} */ ({}));
+  /** Set of secret ids the daemon currently has stored for this
+   *  workbook. Refreshed on open + after each set/delete. */
+  let configured = $state(/** @type {Set<string>} */ (new Set()));
+  let busy = $state(false);
+  let error = $state("");
+
+  /** One-time migration: lift any pre-secrets-refactor localStorage
+   *  keys into the daemon's keychain, then wipe localStorage. We
+   *  do this before the first list() so the UI never shows
+   *  "Connected" pulled from the now-deprecated path. */
+  async function migrateLegacyKeys() {
+    const PREFIX = "wb.env.colorwave.";
+    const moved = [];
+    try {
+      for (const it of INTEGRATIONS) {
+        if (!it.envKey) continue;
+        const k = PREFIX + it.envKey;
+        const v = localStorage.getItem(k);
+        if (typeof v === "string" && v.trim()) {
+          try {
+            await wb.secret.set(it.envKey, v.trim());
+            localStorage.removeItem(k);
+            moved.push(it.envKey);
+          } catch {
+            // Daemon down or no token — leave the localStorage entry
+            // in place so a later session can migrate. Don't surface
+            // as an error; the user can still paste fresh.
+          }
+        }
+      }
+    } catch {
+      // localStorage blocked (private mode); skip silently.
+    }
+    return moved;
+  }
+
+  async function refresh() {
+    error = "";
+    try {
+      await migrateLegacyKeys();
+      const ids = await wb.secret.list();
+      configured = new Set(ids);
+    } catch (e) {
+      error = e?.message ?? String(e);
+    }
+  }
 
   $effect(() => {
     if (!dialogEl) return;
-    if (open && !dialogEl.open) dialogEl.showModal();
+    if (open && !dialogEl.open) {
+      dialogEl.showModal();
+      refresh();
+    }
     if (!open && dialogEl.open) dialogEl.close();
   });
+
+  async function saveKey(envKey, value) {
+    if (!envKey || !value?.trim()) return;
+    busy = true; error = "";
+    try {
+      await wb.secret.set(envKey, value.trim());
+      configured = new Set([...configured, envKey]);
+      pending[envKey] = "";
+    } catch (e) {
+      error = e?.message ?? String(e);
+    }
+    busy = false;
+  }
+
+  async function clearKey(envKey) {
+    if (!envKey) return;
+    busy = true; error = "";
+    try {
+      await wb.secret.delete(envKey);
+      const next = new Set(configured);
+      next.delete(envKey);
+      configured = next;
+    } catch (e) {
+      error = e?.message ?? String(e);
+    }
+    busy = false;
+  }
 
   function close() { open = false; }
   function onKeydown(e) { if (e.key === "Escape") close(); }
@@ -44,7 +125,7 @@
   <header class="flex items-center justify-between px-6 py-4">
     <div class="flex flex-col gap-0.5">
       <h2 class="text-[15px] font-semibold leading-none m-0">Integrations</h2>
-      <p class="text-[11px] text-fg-muted m-0">Connect services the agent can use. Keys stay in your browser.</p>
+      <p class="text-[11px] text-fg-muted m-0">Connect services the agent can use. Keys stored in your OS keychain.</p>
     </div>
     <button
       onclick={close}
@@ -55,9 +136,11 @@
 
   <Scrollbox class="flex-1">
     <div class="px-6 pb-6 flex flex-col gap-3">
+    {#if error}
+      <div class="text-[11px] text-rose-300 bg-rose-950/30 border border-rose-900/60 rounded-md px-3 py-2">{error}</div>
+    {/if}
     {#each INTEGRATIONS as it (it.id)}
-      {@const value = it.envKey ? (env.values[it.envKey] ?? "") : ""}
-      {@const connected = !it.envKey || Boolean(value.trim())}
+      {@const connected = !it.envKey || configured.has(it.envKey)}
       {@const isOpen = expanded[it.id]}
       <div
         class="rounded-lg border transition-colors"
@@ -96,27 +179,32 @@
                 <div class="flex items-center gap-2">
                   <input
                     id={`key-${it.id}`}
-                    type={reveal[it.id] ? "text" : "password"}
-                    value={value}
-                    oninput={(e) => env.set(it.envKey, e.currentTarget.value)}
-                    placeholder={it.keyPrefix}
+                    type="password"
+                    value={pending[it.id] ?? ""}
+                    oninput={(e) => pending[it.id] = e.currentTarget.value}
+                    onkeydown={(e) => { if (e.key === "Enter" && pending[it.id]) saveKey(it.envKey, pending[it.id]); }}
+                    placeholder={connected ? "•••••••• (stored — paste to replace)" : it.keyPrefix}
                     spellcheck="false"
                     autocomplete="off"
+                    disabled={busy}
                     class="flex-1 font-mono text-[12px] px-3 py-2 bg-bg border border-border rounded-md
-                           text-fg placeholder:text-fg-faint focus:outline-none focus:border-accent"
+                           text-fg placeholder:text-fg-faint focus:outline-none focus:border-accent
+                           disabled:opacity-50"
                   />
                   <button
                     type="button"
-                    onclick={() => reveal[it.id] = !reveal[it.id]}
-                    class="text-[11px] text-fg-muted hover:text-fg cursor-pointer
-                           bg-transparent border-0 px-2 py-2"
-                  >{reveal[it.id] ? "hide" : "show"}</button>
-                  {#if value.trim()}
+                    onclick={() => saveKey(it.envKey, pending[it.id])}
+                    disabled={busy || !pending[it.id]?.trim()}
+                    class="text-[11px] text-accent hover:text-fg cursor-pointer
+                           bg-transparent border-0 px-2 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >save</button>
+                  {#if connected}
                     <button
                       type="button"
-                      onclick={() => env.set(it.envKey, "")}
+                      onclick={() => clearKey(it.envKey)}
+                      disabled={busy}
                       class="text-[11px] text-fg-muted hover:text-rose-400 cursor-pointer
-                             bg-transparent border-0 px-2 py-2"
+                             bg-transparent border-0 px-2 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >clear</button>
                   {/if}
                 </div>

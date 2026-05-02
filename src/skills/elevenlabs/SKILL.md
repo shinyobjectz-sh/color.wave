@@ -5,27 +5,32 @@ description: Generate narration, voice clones, sound effects, or dub video into 
 
 # ElevenLabs
 
-The user's API key is available to bash as `$ELEVENLABS_API_KEY`. If
-empty, tell them to set it via File → Integrations.
+The user's API key is in the OS keychain under id `ELEVENLABS_API_KEY`.
+Access it via `wb-fetch --secret=ELEVENLABS_API_KEY`; the daemon
+splices the header for you. You never see the value. If the call
+returns "secret not set for this workbook", tell the user to open
+File → Integrations.
 
 ## Auth
 
-Every endpoint takes `xi-api-key: $ELEVENLABS_API_KEY` as a header.
+Every endpoint uses header `xi-api-key: <ELEVENLABS_API_KEY>`:
+
+```bash
+wb-fetch --secret=ELEVENLABS_API_KEY \
+  --auth-header=xi-api-key --auth-format='{value}' \
+  ...
+```
 
 ## Text-to-speech
 
 ```bash
 # Default voice "Rachel" (id 21m00Tcm4TlvDq8ikWAM); browse voices at
 # https://elevenlabs.io/app/voice-lab to pick a different voice_id.
-curl -s -X POST \
-  "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM" \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "<your narration>",
-    "model_id": "eleven_turbo_v2_5",
-    "voice_settings": { "stability": 0.5, "similarity_boost": 0.75 }
-  }' \
+wb-fetch --secret=ELEVENLABS_API_KEY \
+  --auth-header=xi-api-key --auth-format='{value}' \
+  -X POST 'https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM' \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"<narration>","model_id":"eleven_turbo_v2_5","voice_settings":{"stability":0.5,"similarity_boost":0.75}}' \
   -o /workbook/assets/voiceover.mp3
 ```
 
@@ -37,63 +42,39 @@ curl -s -X POST \
 ## List voices
 
 ```bash
-curl -s -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  https://api.elevenlabs.io/v1/voices | jq '.voices[] | {voice_id, name, labels}'
+wb-fetch --secret=ELEVENLABS_API_KEY \
+  --auth-header=xi-api-key --auth-format='{value}' \
+  https://api.elevenlabs.io/v1/voices \
+  | jq '.voices[] | {voice_id, name, labels}'
 ```
 
 ## Sound effect generation
 
 ```bash
-curl -s -X POST https://api.elevenlabs.io/v1/sound-generation \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "thunderclap with reverberant tail",
-    "duration_seconds": 4
-  }' \
+wb-fetch --secret=ELEVENLABS_API_KEY \
+  --auth-header=xi-api-key --auth-format='{value}' \
+  -X POST 'https://api.elevenlabs.io/v1/sound-generation' \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"thunderclap with reverberant tail","duration_seconds":4}' \
   -o /workbook/assets/thunder.mp3
 ```
 
 ## Dubbing (video → other language with cloned voice)
 
-```bash
-# 1. Submit the dubbing job
-JOB=$(curl -s -X POST https://api.elevenlabs.io/v1/dubbing \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  -F "file=@/workbook/assets/source.mp4" \
-  -F "target_lang=es" \
-  -F "source_lang=auto")
+ElevenLabs dubbing wants multipart upload. wb-fetch only handles
+JSON / utf8 bodies for now (Phase 1). For dubbing, tell the user
+the workflow exists but is not yet wired through wb-fetch — they
+can use ElevenLabs' web UI, then drag the resulting MP4 into the
+Assets panel.
 
-DUB_ID=$(echo "$JOB" | jq -r '.dubbing_id')
+## Voice cloning
 
-# 2. Poll
-while :; do
-  S=$(curl -s -H "xi-api-key: $ELEVENLABS_API_KEY" \
-    "https://api.elevenlabs.io/v1/dubbing/$DUB_ID" | jq -r '.status')
-  [ "$S" = "dubbed" ] && break
-  sleep 10
-done
-
-# 3. Download
-curl -s -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  "https://api.elevenlabs.io/v1/dubbing/$DUB_ID/audio/es" \
-  -o /workbook/assets/dubbed-es.mp4
-```
-
-## Voice cloning (instant)
-
-```bash
-curl -s -X POST https://api.elevenlabs.io/v1/voices/add \
-  -H "xi-api-key: $ELEVENLABS_API_KEY" \
-  -F "name=Custom Voice" \
-  -F "files=@/workbook/assets/sample.mp3"
-# → returns { "voice_id": "..." }; reuse that as voice_id in TTS calls
-```
+Same multipart constraint as dubbing — defer to UI for now and
+flag this as a Phase 2 wb-fetch enhancement (multipart support).
 
 ## Notes
 
 - TTS responses are MP3 by default. Add `?output_format=mp3_44100_192`
   for higher quality, `pcm_44100` for raw PCM.
-- All audio results land in `/workbook/assets/<name>.mp3`; the
-  composition picks them up automatically once referenced by an
-  `<audio data-src="...">` element.
+- All audio results land in `/workbook/assets/` and the composition
+  picks them up via `<audio data-src="...">`.
