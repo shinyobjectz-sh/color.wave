@@ -9,10 +9,40 @@
     chatSendHooks,
     registerChatController,
   } from "../lib/pluginApi.svelte.js";
+  import { mountInstallPrompt } from "@work.books/runtime/install-prompt";
 
   let input = $state("");
   let textareaEl;
   let scrollEl;
+  let installPromptEl;
+
+  // ACP-backed providers (claude/codex) need workbooksd running to spawn
+  // the agent subprocess. If the page wasn't loaded via the daemon, no
+  // ACP. Same heuristic the runtime install toast uses.
+  const daemonReachable = $derived(
+    typeof location !== "undefined" &&
+      location.protocol === "http:" &&
+      location.hostname === "127.0.0.1" &&
+      location.port === "47119" &&
+      location.pathname.startsWith("/wb/"),
+  );
+  const needsDaemonInstall = $derived(
+    agent.provider !== "builtin" && !daemonReachable,
+  );
+
+  // Mount the install prompt card whenever the empty-state placeholder
+  // is on screen with an ACP provider selected but no daemon. Re-runs
+  // on provider change; cleanup removes the previous DOM.
+  $effect(() => {
+    if (!installPromptEl) return;
+    if (!needsDaemonInstall || agent.thread.length || agent.streaming) return;
+    const cleanup = mountInstallPrompt(installPromptEl, {
+      variant: "card",
+      title: "Install Workbooks to connect to your agents",
+      reason: `${agent.provider === "claude" ? "Claude Code" : "Codex"} runs through the local Workbooks daemon over ACP. Install once and it'll show up here automatically.`,
+    });
+    return cleanup;
+  });
 
   // Register a controller so plugins can drive the input + read
   // thread state via wb.chat.setInput / .getInput / .getThread.
@@ -118,9 +148,13 @@
 
   <div bind:this={scrollEl} class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
     {#if !agent.thread.length && !agent.streaming}
-      <div class="text-fg-muted text-sm px-1">
-        Ask the agent to redesign, retime, or add a scene. The player rebuilds on every change.
-      </div>
+      {#if needsDaemonInstall}
+        <div bind:this={installPromptEl} class="empty-install"></div>
+      {:else}
+        <div class="text-fg-muted text-sm px-1">
+          Ask the agent to redesign, retime, or add a scene. The player rebuilds on every change.
+        </div>
+      {/if}
     {/if}
 
     {#each agent.thread as turn, i (i)}
