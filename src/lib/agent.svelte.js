@@ -261,24 +261,37 @@ class AgentStore {
     // what they typed. The assistant turn lands in finally{} below.
     this._persist();
 
-    let currentTextSeg = null;
+    // Track the index of the current open text segment instead of a
+    // plain-object handle. With $state, segments[i] must be REPLACED
+    // (not mutated) for the UI to re-read it; in-place `seg.text +=`
+    // hits the original ref which the proxy doesn't trace, so only
+    // the first token of each text run renders ("I", "The", "The")
+    // until the loop ends. Was a real bug, May 2026.
+    let currentTextIdx = -1;
     const onDelta = (delta) => {
-      if (!currentTextSeg) {
-        currentTextSeg = { kind: "text", text: "" };
-        this.streaming.segments.push(currentTextSeg);
+      const segs = this.streaming.segments.slice();
+      const last = segs[currentTextIdx];
+      if (currentTextIdx === -1 || !last || last.kind !== "text") {
+        currentTextIdx = segs.length;
+        segs.push({ kind: "text", text: delta });
+      } else {
+        segs[currentTextIdx] = { kind: "text", text: last.text + delta };
       }
-      currentTextSeg.text += delta;
-      this.streaming = { segments: [...this.streaming.segments] };
+      this.streaming = { segments: segs };
     };
     const onToolCall = (call, result) => {
-      currentTextSeg = null;
-      this.streaming.segments.push({
-        kind: "tool",
-        name: call.name,
-        argumentsJson: call.argumentsJson,
-        result,
-      });
-      this.streaming = { segments: [...this.streaming.segments] };
+      currentTextIdx = -1;
+      this.streaming = {
+        segments: [
+          ...this.streaming.segments,
+          {
+            kind: "tool",
+            name: call.name,
+            argumentsJson: call.argumentsJson,
+            result,
+          },
+        ],
+      };
     };
 
     try {

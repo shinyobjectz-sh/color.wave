@@ -24,6 +24,7 @@ import { composition, redactDataUrlsForAgent, expandAssetPlaceholders } from "./
 import { assets } from "./assets.svelte.js";
 import { listSkillFiles, loadSkill } from "./skills.js";
 import { userSkills } from "./userSkills.svelte.js";
+import { env } from "./env.svelte.js";
 
 const COMPOSITION_PATH = "/workbook/composition.html";
 const ASSETS_LIST_PATH = "/workbook/assets/list.txt";
@@ -86,7 +87,19 @@ export async function runBash(script) {
   await bash.fs.writeFile(COMPOSITION_PATH, redactDataUrlsForAgent(composition.html));
   await bash.fs.writeFile(ASSETS_LIST_PATH, buildAssetsListing());
 
-  const result = await bash.exec(String(script ?? ""));
+  // Inject integration keys + any other env declarations the user
+  // configured in the Settings/Integrations modals. Read-fresh on
+  // every call (not at construction) so flipping a key in the UI
+  // takes effect on the next agent message — no need to rebuild
+  // the bash singleton. OPENROUTER_API_KEY is intentionally NOT
+  // forwarded — that's the agent's own credential, not for scripts.
+  const sandboxEnv = {};
+  for (const [k, v] of Object.entries(env.values ?? {})) {
+    if (k === "OPENROUTER_API_KEY") continue;
+    if (typeof v === "string" && v.trim()) sandboxEnv[k] = v;
+  }
+
+  const result = await bash.exec(String(script ?? ""), { env: sandboxEnv });
 
   // Read composition back. If the script changed it, commit through
   // composition.set. The redact/expand round-trip preserves asset
