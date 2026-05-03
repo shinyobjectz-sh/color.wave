@@ -41,7 +41,19 @@
     } else if (m.type === "ended") {
       composition.playing = false;
     } else if (m.type === "ready") {
-      composition.curTime = 0;
+      // Restore playhead. The iframe's content reloads any time the
+      // srcdoc string changes — effect-value tweaks, agent edits,
+      // clip add/remove, timeline reorders, etc. Each reload would
+      // otherwise restart playback at t=0. Instead we treat
+      // `composition.curTime` + `composition.playing` as the source
+      // of truth (they're updated continuously by tick events) and
+      // seek the new iframe back to where the old one was, preserving
+      // play state. Restart() in transport.svelte.js still works: it
+      // sets curTime=0 and playing=false BEFORE sending the "restart"
+      // message, so the next ready event reads zeros.
+      const t = composition.curTime;
+      if (t > 0) frameEl?.contentWindow?.postMessage({ type: "seek", value: t }, "*");
+      if (composition.playing) frameEl?.contentWindow?.postMessage({ type: "play" }, "*");
     }
   }
   let ro;
@@ -91,16 +103,23 @@
     class="bg-black border border-border-2 rounded-md overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
     style="width: {frameW}px; height: {frameH}px;"
   >
-    {#key composition.revision}
-      <iframe
-        bind:this={frameEl}
-        srcdoc={srcdoc}
-        sandbox="allow-scripts"
-        title="HyperFrames preview"
-        class="w-full h-full block bg-black"
-        referrerpolicy="no-referrer"
-      ></iframe>
-    {/key}
+    <!--
+      No {#key} wrapper. We deliberately do NOT destroy + recreate
+      the iframe on revision bump. Modern browsers reload iframe
+      content automatically when srcdoc changes (which is what we
+      want — effects / html / clip edits should be visible), but the
+      DOM element itself stays put. Combined with the seek-on-ready
+      logic in onMessage above, that means playhead + play state
+      survive any state-change that flows through the composition.
+    -->
+    <iframe
+      bind:this={frameEl}
+      srcdoc={srcdoc}
+      sandbox="allow-scripts"
+      title="HyperFrames preview"
+      class="w-full h-full block bg-black"
+      referrerpolicy="no-referrer"
+    ></iframe>
   </div>
 </div>
 
