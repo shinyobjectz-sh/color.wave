@@ -124,22 +124,28 @@
           ◌ no agent — connect
         </button>
       {:else}
-        <div
-          class="px-2.5 py-0.5 rounded font-mono text-[10px] truncate"
+        <!-- Same button when an agent IS connected — clicking still
+             opens AgentManager so the user can swap providers, change
+             the model, rotate the API key, or test the connection
+             without hunting through the menubar. The "settled" look
+             (filled badge, no hover-highlight) keeps it from screaming
+             at users who don't need it. -->
+        <button
+          onclick={() => onOpenAgents?.()}
+          class="px-2.5 py-0.5 rounded font-mono text-[10px] truncate cursor-pointer transition-colors hover:opacity-80"
           class:text-accent={agent.provider !== "builtin"}
           class:border={agent.provider !== "builtin"}
           class:border-accent={agent.provider !== "builtin"}
-          class:bg-accent={false}
           class:text-fg-muted={agent.provider === "builtin"}
           style={agent.provider !== "builtin"
             ? "border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); background: color-mix(in srgb, var(--color-accent) 5%, transparent);"
             : ""}
           title={agent.provider === "builtin"
-            ? "Chat is running through the built-in Workbooks Agent (OpenRouter)."
-            : `Chat is running through your ${providerLabel(agent.provider)} subscription via ACP.`}
+            ? "Built-in Workbooks Agent (OpenRouter) — click to change agent, model, or key"
+            : `${providerLabel(agent.provider)} via ACP — click to change agent, model, or key`}
         >
           ● {providerLabel(agent.provider)}
-        </div>
+        </button>
       {/if}
     </div>
 

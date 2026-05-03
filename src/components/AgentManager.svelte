@@ -169,7 +169,21 @@
             {#if a.iconKey}
               {@const src = iconUrl(a.iconKey)}
               {#if src}
-                <img src={src} alt="" class="w-9 h-9 shrink-0 rounded-md object-contain bg-bg/50 p-1" />
+                {#if a.iconKey === "claude"}
+                  <!-- Claude is a colored brand mark (Anthropic orange);
+                       keep it as an image so its color survives. -->
+                  <img src={src} alt="" class="w-7 h-7 shrink-0 object-contain opacity-90" />
+                {:else}
+                  <!-- Native / codex are monochrome marks. We CSS-mask
+                       them and tint via currentColor so the same SVG
+                       works on both light and dark themes — no need
+                       to ship two files or sniff prefers-color-scheme. -->
+                  <span
+                    class="icon-mono w-7 h-7 shrink-0 text-fg/90"
+                    style="--icon-src: url('{src}')"
+                    aria-hidden="true"
+                  ></span>
+                {/if}
               {/if}
             {/if}
             <div class="flex-1 flex flex-col gap-1 min-w-0">
@@ -361,3 +375,15 @@
   </Scrollbox>
  </div>
 </dialog>
+
+<style>
+  /* Monochrome icon — pure-shape SVG masked by currentColor so the
+   * same asset renders correctly on light and dark themes. The SVG
+   * itself can be any opaque fill (mask uses alpha, not color). */
+  .icon-mono {
+    display: inline-block;
+    background-color: currentColor;
+    mask: var(--icon-src) center / contain no-repeat;
+    -webkit-mask: var(--icon-src) center / contain no-repeat;
+  }
+</style>
