@@ -211,12 +211,19 @@ export function createPluginApi(pluginId, store) {
 
   // ── wb.panels ──────────────────────────────────────────────────
   api.panels = {
-    /** Add a tab to the left panel. component is a Svelte component. */
-    addTab({ id, label, icon, component }) {
-      if (!id || !component) {
-        throw new Error("wb.panels.addTab: id + component are required");
+    /** Add a tab to the left panel. Pass either:
+     *   - `component` — a Svelte component (for SDK consumers shipping .svelte)
+     *   - `mount(el) -> cleanup` — imperative DOM mount (for plain-JS plugins)
+     *  Mirrors wb.settings.addSection's dual shape. LeftPanel.svelte's
+     *  rail and content both honor the mount fallback. */
+    addTab({ id, label, icon, component, mount }) {
+      if (!id) {
+        throw new Error("wb.panels.addTab: id is required");
       }
-      const item = { pluginId, id, label: label ?? id, icon, component };
+      if (!component && typeof mount !== "function") {
+        throw new Error("wb.panels.addTab: component or mount is required");
+      }
+      const item = { pluginId, id, label: label ?? id, icon, component, mount };
       appendAndTrack(api, panelTabs, item);
     },
   };
