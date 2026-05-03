@@ -25,10 +25,8 @@ If you find yourself writing a one-line note that doesn't say *what changed for 
 color.wave follows [SemVer](https://semver.org/) with these conventions:
 
 - **Major (`v1.0.0`)** — reserved for the first stable release. The file format and runtime contract are stable; existing files keep working across minor versions.
-- **Minor (`v0.X.0`)** — new features, breaking changes to the file format or plugin API. Existing files may need to be re-saved or exported. Always called out as `(breaking)` in the release title when it breaks.
+- **Minor (`v0.X.0`)** — new features, breaking changes to the file format or the agent tool surface. Existing files may need to be re-saved or exported. Always called out as `(breaking)` in the release title when it breaks.
 - **Patch (`v0.X.Y`)** — bug fixes, performance work, and small additions that don't change the file format or any public API surface.
-
-Plugin releases are tagged independently as `plugin-<id>-vX.Y.Z` and follow the same rules within the plugin's own surface. The colorwave.ai changelog filters plugin tags out — they belong on GitHub but not on the app's release list.
 
 ## Release notes
 
@@ -62,7 +60,6 @@ Every release note is written for a user, not a contributor. The body explains w
 | Kind   | Format                                                  |
 |--------|---------------------------------------------------------|
 | App    | `vX.Y.Z — short summary`                                |
-| Plugin | `Plugin: <name> vX.Y.Z — short summary`                 |
 | Bare   | `vX.Y.Z` (only if the version itself tells the story)   |
 
 Drop any `color.wave ` prefix. The repo and the app already say what this is.

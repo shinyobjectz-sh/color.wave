@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * MenuBar — File / Edit / View / Plugins / Skills dropdowns.
+   * MenuBar — File / Edit / Manage dropdowns.
    *
    * Shape: a horizontal strip of menu triggers. Click opens a
    * dropdown; click outside closes; Escape closes; arrow-keys
@@ -12,8 +12,7 @@
    *
    * Initial population is partial — Phase A surfaces the existing
    * actions (Settings, Render, Package). Subsequent phases (B–E)
-   * fill in New / Open / Export / Plugins / Skills as those features
-   * land.
+   * fill in New / Open / Export / Skills as those features land.
    */
 
   import { onMount } from "svelte";

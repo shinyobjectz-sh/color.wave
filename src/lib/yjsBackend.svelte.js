@@ -17,8 +17,8 @@
 //     wb.collection("assets")
 //   • readUserSkills / pushUserSkill / removeUserSkillByName →
 //     wb.collection("user-skills")
-//   • plugins list (was inline in plugins.svelte.js) →
-//     wb.collection("plugins")
+//   • effects list (agent-generated parametric controls) →
+//     wb.collection("effects")
 
 // Static yjs import: the singlefile flatten output prefers a static
 // reference here so the module body has run before the runtime tries

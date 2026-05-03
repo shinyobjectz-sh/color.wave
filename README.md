@@ -20,8 +20,8 @@ bun run build
 
 - **Chat-on-left, player-on-right** — Cmd+K-style composer, sandboxed iframe preview
 - **Timeline** — auto-parsed clips from `data-start` / `data-duration` attributes
-- **Plugins** — install from URL or local file; bytes embedded inline at install time, no runtime network
-- **Skills** — markdown reference packs the agent loads on demand (`hyperframes`, `gsap`, `hyperframes-cli`)
+- **Effects** — agent-generated parametric controls (color pickers, sliders, toggles) bound to selectors in the composition. Hot-swap on change; ride along inside the file when you share it.
+- **Skills** — markdown reference packs the agent loads on demand (`hyperframes`, `gsap`, `effects`, `hyperframes-cli`)
 - **CRDT state** — composition + assets in a single `<wb-doc>` Yjs doc; Cmd+S saves the whole project back into the file
 - **Self-decompressing** — the build wraps the inlined runtime in a gzip sandwich (`DecompressionStream` shim) so the on-disk file stays ~800 KB despite shipping the full wasm/JS runtime
 

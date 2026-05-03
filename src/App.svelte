@@ -130,9 +130,9 @@
 
 <div class="grid h-screen min-h-0 grid-rows-[34px_minmax(0,1fr)]">
   <header class="flex items-stretch gap-2 px-2 border-b border-border bg-page">
-    <!-- File / Edit / Plugins / Skills menus. Phase A.2 places the
-         primary application actions here; tabs live inside the
-         left panel itself now (LeftPanel.svelte). -->
+    <!-- File / Edit / Manage menus. Phase A.2 places the primary
+         application actions here; tabs (Chat / Assets / Effects) live
+         inside the left panel itself now (LeftPanel.svelte). -->
     <MenuBar
       onNewProject={onNewProject}
       onOpenProject={onOpenProject}

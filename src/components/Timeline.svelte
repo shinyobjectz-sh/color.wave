@@ -495,31 +495,6 @@
     border-color: var(--color-accent);
   }
 
-  /* Plugin-registered clip action row — only rendered when one
-   * clip is selected (see {#if} above). Sits above the clip body
-   * with a subtle drop shadow so it reads as its own toolbar. */
-  .clip-actions {
-    position: absolute;
-    top: -22px;
-    right: 0;
-    display: flex;
-    gap: 2px;
-    z-index: 5;
-    pointer-events: auto;
-  }
-  .clip-actions button {
-    height: 20px; min-width: 20px;
-    padding: 0 6px;
-    background: var(--color-fg);
-    color: white;
-    border: 0;
-    border-radius: 3px;
-    font: 10px var(--font-mono);
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-    transition: opacity 100ms ease;
-  }
-  .clip-actions button:hover { opacity: 0.85; }
 </style>
 
 <RangeEditorPopover
