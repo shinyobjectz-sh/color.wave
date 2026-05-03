@@ -1,0 +1,14 @@
+{
+  "name": "@colorwave/plugin-diff-morph",
+  "version": "0.1.0",
+  "description": "Token-level diff between two code snippets, animated as a video clip via FLIP + GSAP.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=esm --target=es2022 --outfile=dist/diff-morph.js --legal-comments=none",
+    "size": "wc -c dist/diff-morph.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@colorwave/plugin-silence-cutter",
+  "version": "0.1.0",
+  "description": "Whisper-aware silence removal. One bezier curve replaces twelve Premiere sliders.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=esm --target=es2022 --outfile=dist/silence-cutter.js --legal-comments=none",
+    "size": "wc -c dist/silence-cutter.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

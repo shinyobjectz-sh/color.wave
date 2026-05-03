@@ -1,0 +1,14 @@
+{
+  "name": "@colorwave/plugin-colorgrade",
+  "version": "0.1.0",
+  "description": "Reference-image LUT solver + bezier curves panel. Pure WebGL/CSS color grading for HTML compositions.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=esm --target=es2022 --outfile=dist/colorgrade.js --legal-comments=none",
+    "size": "wc -c dist/colorgrade.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@colorwave/plugin-letterbox",
+  "version": "0.1.0",
+  "description": "Cinematic letterbox bars + vignette pulse. Composes with beat-sync.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.js --bundle --format=esm --target=es2022 --outfile=dist/letterbox.js --legal-comments=none",
+    "size": "wc -c dist/letterbox.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

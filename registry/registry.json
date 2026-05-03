@@ -19,6 +19,146 @@
         "version": "0.1.4",
         "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/palette-swap-v0.1.4.js"
       }
+    },
+    {
+      "id": "silence-cutter",
+      "name": "Silence Cutter",
+      "description": "Whisper-aware silence removal. One bezier curve replaces twelve Premiere sliders.",
+      "icon": "✂️",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/silence-cutter",
+      "surfaces": ["panel-tabs", "timeline-clip-actions", "settings", "agent-tools", "composition-decorators"],
+      "permissions": ["network:api-inference.huggingface.co", "storage:indexeddb"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/silence-cutter-v0.1.0.js"
+      }
+    },
+    {
+      "id": "smart-reframe",
+      "name": "Smart Reframe",
+      "description": "Subject-aware aspect-ratio reframe. Solves a smooth pan/zoom path that keeps the main subject in frame.",
+      "icon": "▭",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/smart-reframe",
+      "surfaces": ["timeline-clip-actions", "panels", "settings", "composition-decorators"],
+      "permissions": ["network:cdn.jsdelivr.net", "storage:cache-api"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/smart-reframe-v0.1.0.js"
+      }
+    },
+    {
+      "id": "auto-captions",
+      "name": "Auto Captions",
+      "description": "Kinetic-type captions from Whisper word timestamps with prosody-driven emphasis. Round-trips through the .workbook.html.",
+      "icon": "Aa",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/auto-captions",
+      "surfaces": ["timeline-clip-actions", "panel-tabs", "composition-decorators", "settings"],
+      "permissions": ["network:api-inference.huggingface.co", "network:huggingface.co", "network:esm.sh"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/auto-captions-v0.1.0.js"
+      }
+    },
+    {
+      "id": "bg-remove",
+      "name": "Background Remove",
+      "description": "One-click background removal for images and video clips. RMBG-2.0 + SAM2 via HF Inference.",
+      "icon": "✂︎",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/bg-remove",
+      "surfaces": ["timeline-clip-actions", "panel-tabs", "settings", "agent-tools", "composition-decorators"],
+      "permissions": ["network:api-inference.huggingface.co", "network:queue.fal.run"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/bg-remove-v0.1.0.js"
+      }
+    },
+    {
+      "id": "colorgrade",
+      "name": "Colorgrade",
+      "description": "Reference-image grade match + curves panel. Grades the whole composition surface, not just video tracks.",
+      "icon": "🎚",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/colorgrade",
+      "surfaces": ["composition-decorators", "settings", "agent-tools"],
+      "permissions": [],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/colorgrade-v0.1.0.js"
+      }
+    },
+    {
+      "id": "beat-sync",
+      "name": "Beat Sync",
+      "description": "Beat-detect a track and snap clip cuts to beats with optional flash/zoom/shake hit effects.",
+      "icon": "♪",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/beat-sync",
+      "surfaces": ["panel-tabs", "timeline-clip-actions", "settings", "agent-tools", "composition-decorators"],
+      "permissions": [],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/beat-sync-v0.1.0.js"
+      }
+    },
+    {
+      "id": "diff-morph",
+      "name": "Diff Morph",
+      "description": "Animated token-level morph between two code snippets. FLIP slide kept tokens; dissolve removes; wipe inserts.",
+      "icon": "↔",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/diff-morph",
+      "surfaces": ["panel-tabs", "settings", "agent-tools"],
+      "permissions": ["network:esm.sh"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/diff-morph-v0.1.0.js"
+      }
+    },
+    {
+      "id": "code-clip",
+      "name": "Code Clip",
+      "description": "Drop a code file → typing-out highlighted clip with cursor + speed bezier. The 'only-because-HTML' demo.",
+      "icon": "{ }",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/code-clip",
+      "surfaces": ["chat-input-actions", "panel-tabs", "settings", "agent-tools"],
+      "permissions": ["network:esm.sh"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/code-clip-v0.1.0.js"
+      }
+    },
+    {
+      "id": "letterbox",
+      "name": "Letterbox",
+      "description": "Cinematic bars + vignette pulse. Composes with beat-sync via the cw:beat / --cw-beat-flash contract.",
+      "icon": "▭",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/letterbox",
+      "surfaces": ["composition-decorators", "settings", "agent-tools"],
+      "permissions": [],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/letterbox-v0.1.0.js"
+      }
+    },
+    {
+      "id": "voice-redo",
+      "name": "Voice Redo",
+      "description": "Edit a VO transcript, ElevenLabs regenerates audio at the same duration. The 'AI Resolve' workflow.",
+      "icon": "🎙",
+      "author": "shinyobjectz-sh",
+      "homepage": "https://github.com/shinyobjectz-sh/color.wave/tree/main/plugins/voice-redo",
+      "surfaces": ["timeline-clip-actions", "panel-tabs", "settings", "agent-tools"],
+      "permissions": ["network:api-inference.huggingface.co", "network:api.elevenlabs.io"],
+      "latest": {
+        "version": "0.1.0",
+        "url": "https://raw.githubusercontent.com/shinyobjectz-sh/color.wave/main/registry/assets/voice-redo-v0.1.0.js"
+      }
     }
   ]
 }
