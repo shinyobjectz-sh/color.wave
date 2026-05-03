@@ -5,6 +5,8 @@
 
 import { INITIAL_COMPOSITION, IFRAME_RUNTIME, IFRAME_RUNTIME_AUTOPLAY } from "./initial.js";
 import { assets } from "./assets.svelte.js";
+import { effects } from "./effects.svelte.js";
+import { renderEffects } from "./effectsRender.js";
 import { wb } from "@work.books/runtime";
 import { recordEdit } from "./historyBackend.svelte.js";
 
@@ -225,11 +227,12 @@ class CompositionStore {
    * literal would get the 17 MB wasm bundle injected into our srcdoc.
    * Browsers parse a <body>-only srcdoc fine. Tracked as core-bii.
    *
-   * Plugin composition decorators (registered via wb.composition.
-   * addRenderDecorator) run here in priority order. Each decorator
-   * gets a chance to transform the body HTML before the runtime
-   * script is appended. Decorators that throw are skipped with a
-   * console warn — a buggy plugin shouldn't break the player. */
+   * Effects (agent-generated parametric controls) get applied after
+   * the composition body and before the iframe runtime — a single
+   * <style data-cw-effects> block plus a tiny inline runtime for
+   * non-CSS bindings (attribute, text-content). Reading effects.items
+   * here makes the srcdoc reactive to value changes — the panel sets
+   * a value, this re-runs, the iframe rebuilds. */
   buildSrcdoc() {
     // Read revision INTO THE OUTPUT (data-rev attr) so:
     //  1. Svelte $derived/$effect callers track it as a reactive dep
@@ -240,7 +243,8 @@ class CompositionStore {
     // even under aggressive minification.
     const rev = this.revision;
     const body = this.html;
-    return `<!DOCTYPE html><html><body data-rev="${rev}">${body}\n${IFRAME_RUNTIME}</body></html>`;
+    const fx = renderEffects(effects.items);
+    return `<!DOCTYPE html><html><body data-rev="${rev}">${body}\n${fx}\n${IFRAME_RUNTIME}</body></html>`;
   }
 
   /** Replace the entire composition; the player remounts.

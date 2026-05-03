@@ -1,14 +1,17 @@
 <script>
   import ChatPanel from "./ChatPanel.svelte";
   import AssetsPanel from "./AssetsPanel.svelte";
+  import EffectsPanel from "./EffectsPanel.svelte";
   import { layout } from "../lib/layout.svelte.js";
   import { assets } from "../lib/assets.svelte.js";
+  import { effects } from "../lib/effects.svelte.js";
   import { agent } from "../lib/agent.svelte.js";
   import { isMcpMode } from "../lib/mcpBridge.svelte.js";
 
   // Vertical icon rail on the left edge of the left panel.
   // Built-in panels stay mounted; inactives are CSS-hidden so chat
-  // streaming, asset lists, and history cursors survive a swap.
+  // streaming, asset lists, effect-control values, and history
+  // cursors all survive a tab swap.
 
   const mcpMode = isMcpMode();
 </script>
@@ -47,6 +50,23 @@
         <span class="lp-count">{assets.items.length}</span>
       {/if}
     </button>
+    <button
+      onclick={() => layout.setLeftTab("effects")}
+      class="lp-tab"
+      class:active={layout.leftTab === "effects"}
+      aria-pressed={layout.leftTab === "effects"}
+      aria-label="Effects — agent-generated knobs"
+      title="Effects — agent-generated knobs"
+    >
+      <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="4" cy="4" r="2"/>
+        <circle cx="10" cy="10" r="2"/>
+        <path d="M4 6v4M10 4V8"/>
+      </svg>
+      {#if effects.items.length > 0}
+        <span class="lp-count">{effects.items.length}</span>
+      {/if}
+    </button>
   </nav>
 
   <!-- Active panel column. min-w-0 so the panel can shrink past
@@ -57,6 +77,9 @@
     </div>
     <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "assets"}>
       <AssetsPanel />
+    </div>
+    <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "effects"}>
+      <EffectsPanel />
     </div>
   </div>
 </section>

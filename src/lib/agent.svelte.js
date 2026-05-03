@@ -155,6 +155,165 @@ export function buildTools() {
         }
       },
     },
+    ...effectsTools(),
+  ];
+}
+
+// ── Effects tools ─────────────────────────────────────────────────
+//
+// The agent uses these to expose parametric knobs bound to the
+// composition it just authored. Each effect carries a control schema
+// (color / number / text / select / boolean) and a list of bindings
+// that get applied to the iframe's DOM. Stored in the workbook's
+// Loro doc, so they round-trip through Cmd+S.
+
+function effectsTools() {
+  return [
+    {
+      definition: {
+        name: "effect_create",
+        description:
+          "Add a parametric knob to the Effects panel. Use this when " +
+          "the user wants to tweak something later (a color, a font " +
+          "size, a piece of text, a visibility toggle) without rewriting " +
+          "the composition. Each effect has a control schema and a list " +
+          "of bindings that apply the value to the composition's DOM.\n\n" +
+          "control.kind: 'color' | 'number' | 'text' | 'select' | 'boolean'\n" +
+          "binding.kind: 'css-property' | 'css-variable' | 'attribute' | 'text-content'\n\n" +
+          "Examples:\n" +
+          "  Recolor the hero block:\n" +
+          "    control: { kind: 'color', label: 'Hero', default: '#ff6b6b' }\n" +
+          "    bindings: [{ kind: 'css-property', selector: '.hero', property: 'background-color' }]\n\n" +
+          "  Tagline font size knob:\n" +
+          "    control: { kind: 'number', label: 'Size', default: 48, min: 12, max: 120, step: 1 }\n" +
+          "    bindings: [{ kind: 'css-property', selector: 'h1.tagline', property: 'font-size' }]\n" +
+          "    (the agent should append 'px' or use bindings.transform — for v0.1 use unitless\n" +
+          "    css custom properties, e.g. property '--tagline-size', and reference it in CSS)\n\n" +
+          "  Show/hide subtitle:\n" +
+          "    control: { kind: 'boolean', label: 'Subtitle', default: true }\n" +
+          "    bindings: [{ kind: 'css-variable', selector: ':root', property: '--subtitle-display' }]\n" +
+          "    (then in the composition CSS: .subtitle { display: var(--subtitle-display) }; the boolean\n" +
+          "    serializes to '1' / '0', so use 'block' / 'none' via select instead for visibility toggles)\n\n" +
+          "Returns the new effect's id.",
+        parameters: {
+          type: "object",
+          properties: {
+            id:          { type: "string", description: "Optional explicit id; auto-generated if omitted" },
+            name:        { type: "string", description: "Short label shown above the control" },
+            description: { type: "string", description: "Optional longer description" },
+            control: {
+              type: "object",
+              properties: {
+                kind:    { type: "string", enum: ["color", "number", "text", "select", "boolean"] },
+                label:   { type: "string" },
+                default: {},
+                min:     { type: "number" },
+                max:     { type: "number" },
+                step:    { type: "number" },
+                options: { type: "array", items: { type: "object", properties: { value: {}, label: { type: "string" } } } },
+                placeholder: { type: "string" },
+              },
+              required: ["kind", "default"],
+            },
+            bindings: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  kind:     { type: "string", enum: ["css-property", "css-variable", "attribute", "text-content"] },
+                  selector: { type: "string" },
+                  property: { type: "string" },
+                },
+                required: ["kind"],
+              },
+            },
+          },
+          required: ["name", "control", "bindings"],
+        },
+      },
+      invoke: async (args) => {
+        const { effects } = await import("./effects.svelte.js");
+        const { composition } = await import("./composition.svelte.js");
+        const id = args.id ?? effects.mintId();
+        const entry = effects.upsert({
+          id,
+          name: args.name,
+          description: args.description ?? "",
+          control: args.control,
+          bindings: args.bindings ?? [],
+          value: args.control?.default,
+          createdBy: "agent",
+        });
+        composition.revision += 1;
+        return JSON.stringify({ ok: true, id: entry.id, name: entry.name });
+      },
+    },
+    {
+      definition: {
+        name: "effect_update",
+        description:
+          "Patch an existing effect by id. Common case: change the live value " +
+          "(programmatically swap a color or set a flag). All fields are optional " +
+          "except id; only the supplied keys are merged in.",
+        parameters: {
+          type: "object",
+          properties: {
+            id:          { type: "string" },
+            value:       {},
+            name:        { type: "string" },
+            description: { type: "string" },
+            control:     { type: "object" },
+            bindings:    { type: "array" },
+          },
+          required: ["id"],
+        },
+      },
+      invoke: async ({ id, ...patch }) => {
+        const { effects } = await import("./effects.svelte.js");
+        const { composition } = await import("./composition.svelte.js");
+        const next = effects.update(id, patch);
+        if (!next) return JSON.stringify({ ok: false, message: `no effect with id ${id}` });
+        composition.revision += 1;
+        return JSON.stringify({ ok: true, id: next.id, value: next.value });
+      },
+    },
+    {
+      definition: {
+        name: "effect_delete",
+        description: "Remove an effect by id.",
+        parameters: {
+          type: "object",
+          properties: { id: { type: "string" } },
+          required: ["id"],
+        },
+      },
+      invoke: async ({ id }) => {
+        const { effects } = await import("./effects.svelte.js");
+        const { composition } = await import("./composition.svelte.js");
+        const ok = effects.remove(id);
+        if (ok) composition.revision += 1;
+        return JSON.stringify({ ok });
+      },
+    },
+    {
+      definition: {
+        name: "effect_list",
+        description: "Return the current effects list (id, name, control kind, current value).",
+        parameters: { type: "object", properties: {} },
+      },
+      invoke: async () => {
+        const { effects } = await import("./effects.svelte.js");
+        const summary = effects.items.map((fx) => ({
+          id: fx.id,
+          name: fx.name,
+          description: fx.description,
+          controlKind: fx.control?.kind,
+          value: fx.value,
+          bindingCount: fx.bindings?.length ?? 0,
+        }));
+        return JSON.stringify(summary);
+      },
+    },
   ];
 }
 
