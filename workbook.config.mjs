@@ -106,6 +106,29 @@ export default {
     },
   },
 
+  // Install-prompt copy overrides (Phase 3) — per-feature override
+  // of the SDK's default catalog. Surfaces in the wall the runtime
+  // mounts when a user hits a daemon-only feature without Workbooks
+  // installed (e.g. tries to send a chat message via local Claude
+  // Code while opened from file://). Authors only need to override
+  // the features they actually use; unspecified ones keep the SDK
+  // default.
+  installPrompts: {
+    agents: {
+      title: "Bring your own LLM to colorwave",
+      reason:
+        "Wire Claude Code or Codex CLI into colorwave for a real co-edit loop. " +
+        "Workbooks runs over your CLI's subscription — no API keys are sent.",
+    },
+    autosave: {
+      title: "Save your composition in place",
+      reason:
+        "Edit and save this colorwave file like a document. Workbooks writes " +
+        "your composition back to disk atomically so the file you share is " +
+        "always the composition you built.",
+    },
+  },
+
   // Integration keys live in the daemon's keychain (workbooksd 0.1+),
   // not in env / localStorage. The `secrets` block declares which
   // HTTPS hosts each key may be sent to — workbooksd refuses any
