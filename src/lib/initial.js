@@ -87,21 +87,28 @@ export const INITIAL_COMPOSITION = `<style>
   });
 </` + `script>`;
 
+// GSAP source, inlined at build time. Vite's ?raw query reads
+// `gsap/dist/gsap.min.js` from node_modules as a string, which we
+// then splice into the iframe srcdoc as inline <script>. The CDN
+// path doesn't work under the workbook runtime's CSP
+// (script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:) — and
+// even file:// users were one offline minute away from a broken
+// player. Inline GSAP makes the artifact truly portable.
+import GSAP_SOURCE from "gsap/dist/gsap.min.js?raw";
+
 // Iframe runtime — loaded from the studio.
 //
-// Loads GSAP from a CDN (or skips animation if offline), builds a
-// master timeline that scrubs clip visibility AND any author tweens
-// the composition registers via window.hf.timeline. Drives playback
-// from postMessage commands posted by the parent, and emits a `tick`
-// every frame while playing so the timeline can render the playhead.
+// Builds a master timeline that scrubs clip visibility AND any
+// author tweens the composition registers via window.hf.timeline.
+// Drives playback from postMessage commands posted by the parent,
+// and emits a `tick` every frame while playing so the timeline can
+// render the playhead.
 //
 // The /script close is broken into two strings to dodge the host
 // page's HTML parser; see core-bii in beads for context.
 function makeRuntime({ autoplay }) {
   const initBody = `
 (function(){
-  const GSAP_URL = "https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js";
-
   function buildClips() {
     return Array.from(document.querySelectorAll("[data-start]")).map(el => ({
       el,
@@ -147,15 +154,11 @@ function makeRuntime({ autoplay }) {
     return tl;
   }
 
+  // GSAP is inlined into the iframe srcdoc above this runtime block
+  // (see GSAP_SOURCE / IFRAME_RUNTIME assembly in initial.js). By the
+  // time this runtime executes, window.gsap is already present.
   function loadGsap() {
-    return new Promise((resolve) => {
-      if (window.gsap) return resolve(window.gsap);
-      const s = document.createElement("script");
-      s.src = GSAP_URL;
-      s.onload = () => resolve(window.gsap);
-      s.onerror = () => resolve(null); // graceful degrade
-      document.head.appendChild(s);
-    });
+    return Promise.resolve(window.gsap || null);
   }
 
   function syncTo(time) {
@@ -231,7 +234,11 @@ function makeRuntime({ autoplay }) {
   }, { capture: true });
 })();
 `;
-  return "<" + "script>" + initBody + "</" + "script>";
+  // GSAP_SOURCE is the UMD-flavored gsap.min.js, inlined verbatim.
+  // It registers window.gsap synchronously, so when initBody runs in
+  // the next <script> tag below, loadGsap() resolves immediately.
+  const gsapTag = "<" + "script>" + GSAP_SOURCE + "</" + "script>";
+  return gsapTag + "<" + "script>" + initBody + "</" + "script>";
 }
 
 export const IFRAME_RUNTIME          = makeRuntime({ autoplay: false });

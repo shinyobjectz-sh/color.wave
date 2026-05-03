@@ -15,6 +15,7 @@
   import PermissionsDialog from "./components/PermissionsDialog.svelte";
   import { permissionsPanel } from "./lib/permissionsPanel.svelte.js";
   import HistoryModal from "./components/HistoryModal.svelte";
+  import CspViolationsCard from "./components/CspViolationsCard.svelte";
   import { env } from "./lib/env.svelte.js";
   import { layout } from "./lib/layout.svelte.js";
   import { mcpBridge, isMcpMode } from "./lib/mcpBridge.svelte.js";
@@ -233,6 +234,7 @@
 <AgentManager bind:open={agentsOpen} />
 <PermissionsDialog />
 <HistoryModal bind:open={historyOpen} />
+<CspViolationsCard />
 
 <!-- Hidden file input for File > Open Project. Accepts hyperframe.html
      and .workbook.html — projectIO.openProject sniffs the format. -->

@@ -9,6 +9,7 @@
 // transport returned by substrate's negotiate().
 
 import { wbSubstrate } from "./substrateBackend.svelte.js";
+import { getDoc } from "./yjsBackend.svelte.js";
 
 class AutoSaveStore {
   // Mirrors WriteSemantics.status from the substrate transport.
@@ -17,6 +18,13 @@ class AutoSaveStore {
   tier         = $state("T5");
   lastSavedAt  = $state(0);
   errorMessage = $state("");
+  // Has the in-memory Y.Doc moved past the last persisted image? When
+  // a transport tier can autosave (T2/T3 = saved-in-file) we clear
+  // this on each successful commit. When it can't (T4 download-to-
+  // keep, T5 read-only), the beforeunload guard surfaces the browser's
+  // native "leave?" dialog so a refresh / close doesn't drop edits
+  // silently.
+  dirty        = $state(false);
 
   _booted = false;
 
@@ -39,8 +47,38 @@ class AutoSaveStore {
 
     wbSubstrate.transport.onStatusChange?.((s) => {
       this.status = s;
-      if (s === "saved-in-file") this.lastSavedAt = Date.now();
+      if (s === "saved-in-file") {
+        this.lastSavedAt = Date.now();
+        this.dirty = false;
+      }
     });
+
+    // Track edits made AFTER bootstrap. The bootstrap path applies
+    // hydration updates to the Y.Doc; subscribing here means those
+    // don't count as "user edits". Any update from this point on
+    // marks the doc dirty.
+    const doc = getDoc();
+    if (doc) {
+      doc.on("updateV2", () => { this.dirty = true; });
+    }
+
+    // beforeunload: if the doc is dirty and the active tier can't
+    // autosave, trigger the browser's native "leave site?" prompt.
+    // Modern browsers ignore the returnValue string and show a fixed
+    // message; we just need to call preventDefault + set returnValue
+    // for legacy compatibility. Daemon-served sessions
+    // (status === "saved-in-file") debounce-commit on every edit, so
+    // there's nothing to prompt about there.
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", (e) => {
+        if (!this.dirty) return;
+        if (this.status === "saved-in-file") return;
+        e.preventDefault();
+        // Some older browsers required setting returnValue. The string
+        // is ignored by Chromium / Firefox / Safari modern releases.
+        e.returnValue = "Unsaved changes will be lost.";
+      });
+    }
 
     // Override SDK's window.workbookSave (the SDK's Cmd+S keydown
     // forwards here). Our save = commitPatch through the substrate
@@ -52,6 +90,7 @@ class AutoSaveStore {
         if (result.kind === "ok") {
           this.status = "saved-in-file";
           this.lastSavedAt = Date.now();
+          this.dirty = false;
           showAutoSaveToast("saved");
         } else if (result.kind === "queued") {
           // T4 path — surface the download CTA

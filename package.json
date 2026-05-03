@@ -1,6 +1,6 @@
 {
   "name": "colorwave",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "color.wave — a portable HTML AI video editor. One file, runs anywhere.",
   "private": true,
   "type": "module",
@@ -21,8 +21,11 @@
     "@work.books/substrate": "workspace:*",
     "dompurify": "^3.4.2",
     "fflate": "^0.8.2",
+    "gsap": "^3.12.5",
+    "html2canvas-pro": "^1.5.10",
     "just-bash": "^2.14.3",
     "svelte": "^5.0.0",
+    "webm-muxer": "^5.0.4",
     "yjs": "^13.6.0"
   },
   "devDependencies": {

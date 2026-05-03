@@ -21,37 +21,17 @@
 //
 // Quality / limits
 // ----------------
-// - Rasterization uses html2canvas-pro from a CDN (loaded once).
+// - Rasterization uses html2canvas-pro, bundled into the workbook.
 //   CSS filters, blur, mix-blend-mode are approximate — for high
 //   fidelity, use the HTML export path + HyperFrames CLI.
 
 import { composition } from "./composition.svelte.js";
 import { IFRAME_RUNTIME } from "./initial.js";
-
-const HTML2CANVAS_URL = "https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.10/dist/html2canvas-pro.min.js";
-const WEBM_MUXER_URL  = "https://cdn.jsdelivr.net/npm/webm-muxer@5.0.4/+esm";
-
-let html2canvasLoader = null;
-async function loadHtml2Canvas() {
-  if (window.html2canvas) return window.html2canvas;
-  if (html2canvasLoader) return html2canvasLoader;
-  html2canvasLoader = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = HTML2CANVAS_URL;
-    s.crossOrigin = "anonymous";
-    s.onload = () => resolve(window.html2canvas);
-    s.onerror = () => reject(new Error("html2canvas failed to load (offline?)"));
-    document.head.appendChild(s);
-  });
-  return html2canvasLoader;
-}
-
-let webmMuxerLoader = null;
-async function loadWebmMuxer() {
-  if (webmMuxerLoader) return webmMuxerLoader;
-  webmMuxerLoader = import(/* @vite-ignore */ WEBM_MUXER_URL);
-  return webmMuxerLoader;
-}
+// Bundled at build time. The CDN-loaded path didn't work under the
+// workbook runtime CSP (script-src 'self' …) and broke offline use.
+// vite-plugin-singlefile inlines these imports into the artifact.
+import html2canvas from "html2canvas-pro";
+import { Muxer, ArrayBufferTarget } from "webm-muxer";
 
 export function hasWebCodecs() {
   return typeof VideoEncoder !== "undefined" && typeof VideoFrame !== "undefined";
@@ -153,11 +133,10 @@ function pickMediaRecorderMime() {
 // ─── WebCodecs path ────────────────────────────────────────────
 async function renderViaWebCodecs({
   width, height, fps,
-  iframe, html2canvas,
+  iframe,
   totalFrames, totalDuration,
   onProgress, onPhase, signal,
 }) {
-  const { Muxer, ArrayBufferTarget } = await loadWebmMuxer();
   const { codec, muxerCodec } = await pickWebCodecsCodec({ width, height, fps });
 
   const muxer = new Muxer({
@@ -226,7 +205,7 @@ async function renderViaWebCodecs({
 // ─── MediaRecorder fallback ────────────────────────────────────
 async function renderViaMediaRecorder({
   width, height, fps,
-  iframe, html2canvas,
+  iframe,
   totalFrames, totalDuration,
   onProgress, onPhase, signal,
 }) {
@@ -271,7 +250,7 @@ async function renderViaMediaRecorder({
 
 /** Run a full render. `onProgress({frame, totalFrames, percent})`
  *  fires per frame; `onPhase(name)` on phase transitions:
- *    loading-rasterizer → mounting-iframe → recording → finalizing.
+ *    mounting-iframe → recording → finalizing.
  *  Returns the final Blob. Aborts on `signal.aborted`. */
 export async function renderComposition({
   width, height,
@@ -281,9 +260,6 @@ export async function renderComposition({
   if (!width || !height) throw new Error("width and height are required");
   if (composition.totalDuration <= 0) throw new Error("Composition has no clips to render");
 
-  onPhase?.("loading-rasterizer");
-  const html2canvas = await loadHtml2Canvas();
-
   onPhase?.("mounting-iframe");
   const { iframe, cleanup } = await mountRenderIframe({ width, height });
 
@@ -292,7 +268,7 @@ export async function renderComposition({
 
   onPhase?.("recording");
   try {
-    const args = { width, height, fps, iframe, html2canvas, totalFrames, totalDuration, onProgress, onPhase, signal };
+    const args = { width, height, fps, iframe, totalFrames, totalDuration, onProgress, onPhase, signal };
     return hasWebCodecs()
       ? await renderViaWebCodecs(args)
       : await renderViaMediaRecorder(args);

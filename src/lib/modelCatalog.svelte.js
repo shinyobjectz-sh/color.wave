@@ -14,9 +14,54 @@
 // `.refresh()` forces a network round-trip; `.ensure()` only
 // fetches when the cache is missing or stale.
 
+import { cspMonitor } from "./cspMonitor.svelte.js";
+
 const CACHE_KEY = "wb.colorwave.openrouterModels.v1";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const ENDPOINT = "https://openrouter.ai/api/v1/models";
+
+// When served by workbooksd, the page lives at /wb/<token>/. CSP is
+// connect-src 'self', so direct cross-origin fetch is blocked. The
+// daemon's same-origin /wb/<token>/proxy endpoint is the legal path:
+// it forwards to any HTTPS host (network permission must be granted,
+// which colorwave declares in its config). When the page isn't served
+// from a daemon (file://, plain dev), fall back to direct fetch.
+const DAEMON_TOKEN_RE = /^\/wb\/([0-9a-f]{32})\/?/;
+function daemonProxyUrl() {
+  if (typeof location === "undefined") return null;
+  const m = location.pathname.match(DAEMON_TOKEN_RE);
+  if (!m) return null;
+  return `${location.origin}/wb/${m[1]}/proxy`;
+}
+
+async function fetchModels() {
+  const proxyUrl = daemonProxyUrl();
+  if (proxyUrl) {
+    const r = await fetch(proxyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: ENDPOINT,
+        method: "GET",
+        headers: { accept: "application/json" },
+      }),
+    });
+    if (!r.ok) throw new Error(`proxy /models: HTTP ${r.status}`);
+    const env = await r.json();
+    if ((env.status ?? 0) >= 400) throw new Error(`OpenRouter /models: HTTP ${env.status}`);
+    return JSON.parse(env.body || "{}");
+  }
+  // workbook-disable-next-line workbook/portability/no-external-fetch
+  const r = await fetch(ENDPOINT, { headers: { accept: "application/json" } });
+  if (!r.ok) throw new Error(`OpenRouter /models: HTTP ${r.status}`);
+  return r.json();
+}
+
+// Failed-attempt backoff. Without this, a network error leaves
+// fetchedAt null forever, so the cache-stale check in ensure() never
+// short-circuits and any re-render that retriggers the $effect kicks
+// off another fetch — the loop the user hit.
+const RETRY_AFTER_FAILURE_MS = 5 * 60 * 1000; // 5min
 
 // Prefix → favicon source. Domain choice prioritises the lab's
 // canonical homepage so favicons stay recognizable. When OpenRouter
@@ -109,6 +154,7 @@ class ModelCatalog {
   loading = $state(false);
   error = $state(/** @type {string | null} */ (null));
   fetchedAt = $state(/** @type {number | null} */ (null));
+  lastTriedAt = $state(/** @type {number | null} */ (null));
 
   constructor() {
     const cached = readCache();
@@ -118,10 +164,15 @@ class ModelCatalog {
     }
   }
 
-  /** Fetch only when cache is stale or empty. */
+  /** Fetch only when cache is stale or empty, AND we haven't recently
+   *  tried-and-failed. The lastTriedAt guard is what stops the
+   *  re-render-driven retry loop. */
   async ensure() {
     const fresh = this.fetchedAt && (Date.now() - this.fetchedAt < CACHE_TTL_MS);
     if (fresh && this.models.length) return;
+    const recentlyFailed =
+      this.lastTriedAt && (Date.now() - this.lastTriedAt < RETRY_AFTER_FAILURE_MS);
+    if (recentlyFailed) return;
     await this.refresh();
   }
 
@@ -129,10 +180,9 @@ class ModelCatalog {
     if (this.loading) return;
     this.loading = true;
     this.error = null;
+    this.lastTriedAt = Date.now();
     try {
-      const r = await fetch(ENDPOINT, { headers: { accept: "application/json" } });
-      if (!r.ok) throw new Error(`OpenRouter /models: HTTP ${r.status}`);
-      const j = await r.json();
+      const j = await fetchModels();
       const arr = Array.isArray(j?.data) ? j.data : [];
       const normalized = arr.map(normalizeOne).filter(Boolean);
       // Pin Anthropic / OpenAI / Google to the top — the labs most
@@ -151,7 +201,16 @@ class ModelCatalog {
       this.fetchedAt = Date.now();
       writeCache(normalized);
     } catch (e) {
-      this.error = e?.message ?? String(e);
+      // If the failure was a CSP block (no proxy available, direct
+      // fetch refused), say so explicitly. The CspViolationsCard will
+      // also surface the structured event with a copy-pasteable
+      // report, but a clear inline message at the picker keeps the
+      // user from staring at a generic "offline" badge.
+      const blockedByCsp =
+        cspMonitor.wasBlocked(ENDPOINT) || cspMonitor.wasBlocked(new URL(ENDPOINT).origin);
+      this.error = blockedByCsp
+        ? "blocked by workbook CSP — see diagnostics card (top-right)"
+        : (e?.message ?? String(e));
     } finally {
       this.loading = false;
     }
