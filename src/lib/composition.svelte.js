@@ -4,7 +4,6 @@
 // the Timeline parses its [data-start] elements into clips.
 
 import { INITIAL_COMPOSITION, IFRAME_RUNTIME, IFRAME_RUNTIME_AUTOPLAY } from "./initial.js";
-import { compositionDecorators } from "./pluginApi.svelte.js";
 import { assets } from "./assets.svelte.js";
 import { wb } from "@work.books/runtime";
 import { recordEdit } from "./historyBackend.svelte.js";
@@ -240,15 +239,7 @@ class CompositionStore {
     // Embedding the value in the template literal keeps the read live
     // even under aggressive minification.
     const rev = this.revision;
-    let body = this.html;
-    for (const dec of compositionDecorators) {
-      try {
-        const r = dec.transform(body);
-        if (typeof r === "string") body = r;
-      } catch (e) {
-        console.warn(`composition decorator from ${dec.pluginId} threw:`, e);
-      }
-    }
+    const body = this.html;
     return `<!DOCTYPE html><html><body data-rev="${rev}">${body}\n${IFRAME_RUNTIME}</body></html>`;
   }
 

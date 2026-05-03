@@ -6,7 +6,6 @@
   import RenderModal from "./components/RenderModal.svelte";
   import Splitter from "./components/Splitter.svelte";
   import MenuBar from "./components/MenuBar.svelte";
-  import PluginManager from "./components/PluginManager.svelte";
   import SkillManager from "./components/SkillManager.svelte";
   import IntegrationManager from "./components/IntegrationManager.svelte";
   import AgentManager from "./components/AgentManager.svelte";
@@ -25,7 +24,6 @@
 
   let settingsOpen = $state(false);
   let renderOpen = $state(false);
-  let pluginsOpen = $state(false);
   let skillsOpen = $state(false);
   let integrationsOpen = $state(false);
   let agentsOpen = $state(false);
@@ -144,7 +142,6 @@
       onSettings={() => settingsOpen = true}
       onSave={triggerSave}
       onHistory={() => historyOpen = true}
-      onPluginManager={() => pluginsOpen = true}
       onSkillManager={() => skillsOpen = true}
       onIntegrationManager={() => integrationsOpen = true}
       onAgentManager={() => agentsOpen = true}
@@ -226,7 +223,6 @@
 
 <SettingsModal bind:open={settingsOpen} />
 <RenderModal bind:open={renderOpen} />
-<PluginManager bind:open={pluginsOpen} />
 <SkillManager bind:open={skillsOpen} />
 <IntegrationManager bind:open={integrationsOpen} />
 <AgentManager bind:open={agentsOpen} />

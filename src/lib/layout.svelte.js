@@ -19,7 +19,7 @@
 
 import { app } from "@work.books/runtime/svelte";
 
-export const LEFT_TABS = ["chat", "assets", "plugins"];
+export const LEFT_TABS = ["chat", "assets"];
 
 // Standard social/cinematic aspect ratios. Order = display order
 // in the picker. Stored as the "w:h" string so it round-trips

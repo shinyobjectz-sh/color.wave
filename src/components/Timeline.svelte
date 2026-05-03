@@ -3,7 +3,6 @@
   import { layout, ZOOM_PRESETS, ASPECT_PRESETS } from "../lib/layout.svelte.js";
   import { togglePlay, restart as restartPlayback, fmtTime as fmtTransport } from "../lib/transport.svelte.js";
   import RangeEditorPopover from "./RangeEditorPopover.svelte";
-  import { timelineClipActions } from "../lib/pluginApi.svelte.js";
 
   let rangeEditor = $state(null); // { clip, anchor: {x, y} }
 
@@ -687,34 +686,6 @@
                     role="slider"
                     tabindex="-1"
                   ></div>
-                {/if}
-
-                <!-- Plugin-registered clip actions. Visible only
-                     when exactly ONE clip is selected and that clip
-                     is THIS one. Each plugin's `when` predicate
-                     filters the action set. Pointer events stop
-                     here so the parent's drag/select gesture
-                     doesn't fire when clicking an action button. -->
-                {#if selectedIds.size === 1 && selectedIds.has(c.id) && timelineClipActions.length > 0}
-                  <div class="clip-actions">
-                    {#each timelineClipActions as action (action.pluginId + ":" + action.label)}
-                      {#if !action.when || action.when(c)}
-                        <button
-                          type="button"
-                          onpointerdown={(ev) => ev.stopPropagation()}
-                          onclick={(ev) => {
-                            ev.stopPropagation();
-                            try {
-                              const r = action.onClick(c);
-                              if (r && typeof r.then === "function") r.catch((e) => console.warn(`clip action ${action.pluginId}:`, e));
-                            } catch (e) { console.warn(`clip action ${action.pluginId}:`, e); }
-                          }}
-                          title={action.label + " · " + action.pluginId}
-                          aria-label={action.label}
-                        >{action.icon ?? action.label.slice(0, 2)}</button>
-                      {/if}
-                    {/each}
-                  </div>
                 {/if}
               </div>
             {/each}

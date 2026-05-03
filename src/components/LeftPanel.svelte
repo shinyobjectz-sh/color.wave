@@ -1,48 +1,16 @@
 <script>
   import ChatPanel from "./ChatPanel.svelte";
   import AssetsPanel from "./AssetsPanel.svelte";
-  import PluginsPanel from "./PluginsPanel.svelte";
-  import { plugins } from "../lib/plugins.svelte.js";
   import { layout } from "../lib/layout.svelte.js";
   import { assets } from "../lib/assets.svelte.js";
   import { agent } from "../lib/agent.svelte.js";
   import { isMcpMode } from "../lib/mcpBridge.svelte.js";
-  import { panelTabs } from "../lib/pluginApi.svelte.js";
 
   // Vertical icon rail on the left edge of the left panel.
   // Built-in panels stay mounted; inactives are CSS-hidden so chat
-  // streaming, asset lists, MCP form values, and history cursors
-  // survive a swap. Plugin-registered tabs (panelTabs) only mount
-  // when active — they opt in to background-survival themselves.
+  // streaming, asset lists, and history cursors survive a swap.
 
   const mcpMode = isMcpMode();
-
-  // Mount fallback for plain-JS plugins that registered { mount(el) }
-  // instead of a Svelte component. Mirrors PluginsPanel's mountSection
-  // — runs the mount fn on attach, runs its returned cleanup on detach,
-  // and re-mounts when the function reference changes (plugin upgrade).
-  function mountTab(node, fn) {
-    let cleanup;
-    let currentFn = fn;
-    function start() {
-      try { cleanup = currentFn(node); }
-      catch (e) { console.warn("plugin tab mount threw:", e); }
-    }
-    function stop() {
-      if (typeof cleanup === "function") {
-        try { cleanup(); } catch (e) { console.warn("plugin tab cleanup threw:", e); }
-      }
-      cleanup = undefined;
-    }
-    start();
-    return {
-      update(nextFn) {
-        if (nextFn === currentFn) return;
-        stop(); currentFn = nextFn; start();
-      },
-      destroy: stop,
-    };
-  }
 </script>
 
 <section class="flex min-h-0 flex-1">
@@ -79,41 +47,6 @@
         <span class="lp-count">{assets.items.length}</span>
       {/if}
     </button>
-    <button
-      onclick={() => layout.setLeftTab("plugins")}
-      class="lp-tab"
-      class:active={layout.leftTab === "plugins"}
-      aria-pressed={layout.leftTab === "plugins"}
-      aria-label="Installed plugins — inline UIs"
-      title="Installed plugins"
-    >
-      <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2.5" y="2.5" width="4" height="4" rx="0.5"/>
-        <rect x="7.5" y="2.5" width="4" height="4" rx="0.5"/>
-        <rect x="2.5" y="7.5" width="4" height="4" rx="0.5"/>
-        <path d="M7.5 9.5h4M9.5 7.5v4"/>
-      </svg>
-      {#if plugins.items.length > 0}
-        <span class="lp-count">{plugins.items.length}</span>
-      {/if}
-    </button>
-    {#each panelTabs as tab (tab.pluginId + ":" + tab.id)}
-      <button
-        onclick={() => layout.setLeftTab(`plugin:${tab.id}`)}
-        class="lp-tab"
-        class:active={layout.leftTab === `plugin:${tab.id}`}
-        aria-pressed={layout.leftTab === `plugin:${tab.id}`}
-        aria-label={tab.label}
-        title={tab.label}
-      >
-        {#if tab.icon}
-          <span class="lp-plugin-icon">{tab.icon}</span>
-        {:else}
-          <!-- Fallback glyph: first letter of the label, uppercase. -->
-          <span class="lp-plugin-letter">{(tab.label ?? "?").trim().charAt(0).toUpperCase() || "?"}</span>
-        {/if}
-      </button>
-    {/each}
   </nav>
 
   <!-- Active panel column. min-w-0 so the panel can shrink past
@@ -125,20 +58,6 @@
     <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "assets"}>
       <AssetsPanel />
     </div>
-    <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "plugins"}>
-      <PluginsPanel />
-    </div>
-    {#each panelTabs as tab (tab.pluginId + ":" + tab.id)}
-      {#if layout.leftTab === `plugin:${tab.id}`}
-        <div class="flex-1 flex flex-col min-h-0">
-          {#if tab.component}
-            <tab.component />
-          {:else if tab.mount}
-            <div class="flex-1 min-h-0 overflow-auto" use:mountTab={tab.mount}></div>
-          {/if}
-        </div>
-      {/if}
-    {/each}
   </div>
 </section>
 
@@ -187,17 +106,6 @@
     height: 16px;
     border-radius: 2px;
     background: var(--color-accent);
-  }
-
-  .lp-plugin-icon {
-    font-size: 16px;
-    line-height: 1;
-  }
-  .lp-plugin-letter {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1;
   }
 
   /* Counts / busy dot ride as small badges on the icon's
