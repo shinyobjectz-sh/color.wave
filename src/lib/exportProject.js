@@ -300,7 +300,11 @@ export async function importProjectFile(fileOrText) {
 }
 
 /** Build the snapshot, package it, and trigger a download. The zip
- *  contains <slug>.workbook.html + assets/ + manifest.json. */
+ *  contains <slug>.html + assets/ + manifest.json. The legacy
+ *  .workbook.html compound extension was retired in 0.4.0 — workbook
+ *  identity is content-based (`<meta name="wb-permissions">`) and
+ *  routing on macOS is via the LaunchServices.OpenWith xattr the
+ *  daemon stamps, neither of which depends on the filename. */
 export async function exportProject({ filename, onError } = {}) {
   try {
     const html = await buildPortableHtml();
@@ -310,9 +314,9 @@ export async function exportProject({ filename, onError } = {}) {
       // Inline anything under 100 KB; extract larger assets to
       // assets/<sha>.<ext>.
       extractInlineLargerThan: 100 * 1024,
-      // The HTML inside the zip is named <slug>.workbook.html so
-      // it matches the file users would have built standalone.
-      htmlBasename: `${baseSlug}.workbook`,
+      // The HTML inside the zip matches what `wb build` produces
+      // (also `<slug>.html` in 0.4.0+).
+      htmlBasename: baseSlug,
       // No external bundling by default — local-asset projects only.
       bundleExternal: false,
     });
