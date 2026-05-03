@@ -25,19 +25,22 @@ function getStored(key) {
   return localStorage.getItem(envStorageKey(key)) ?? "";
 }
 
-// Suggestions in the model field — surfaced via <datalist>.
-// The field is free-text; users can type any OpenRouter model id
-// (e.g. `mistralai/mistral-large-2412` or anything else routed
-// through openrouter.ai) and the agent loop just forwards it.
+// Static fallback list — used until the dynamic OpenRouter catalog
+// (lib/modelCatalog.svelte.js) finishes its first fetch, and as a
+// safety net if the network is unreachable. Kept short so the
+// fallback picker isn't a wall of options the user can't scan.
 export const MODEL_PRESETS = [
-  { id: "anthropic/claude-haiku-4.5",  label: "Claude Haiku 4.5 (default)" },
-  { id: "anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6" },
+  { id: "google/gemini-3.1-pro-preview-customtools", label: "Gemini 3.1 Pro Preview · custom-tools (default)" },
   { id: "anthropic/claude-opus-4.7",   label: "Claude Opus 4.7" },
+  { id: "anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6" },
+  { id: "anthropic/claude-haiku-4.5",  label: "Claude Haiku 4.5" },
   { id: "openai/gpt-5.1",              label: "GPT-5.1" },
-  { id: "google/gemini-3.5-pro",       label: "Gemini 3.5 Pro" },
-  { id: "minimax/minimax-m2.7",        label: "MiniMax M2.7" },
 ];
-const DEFAULT_MODEL = "anthropic/claude-haiku-4.5";
+// Gemini 3.1 Pro (custom-tools preview) is currently the strongest
+// pairing for our agent loop — long-context reasoning + tight
+// tool-call adherence. Users can still pick anything via the
+// dropdown; this just sets the out-of-the-box model.
+const DEFAULT_MODEL = "google/gemini-3.1-pro-preview-customtools";
 
 class EnvStore {
   decls = readManifestEnv();

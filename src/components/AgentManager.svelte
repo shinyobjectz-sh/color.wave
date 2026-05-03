@@ -19,8 +19,9 @@
   import { listAdapters, connect, AcpError } from "@work.books/runtime/agent-acp";
   import { iconUrl } from "@work.books/runtime/storage";
   import Scrollbox from "./Scrollbox.svelte";
+  import ModelPicker from "./ModelPicker.svelte";
   import { agent } from "../lib/agent.svelte.js";
-  import { env, MODEL_PRESETS } from "../lib/env.svelte.js";
+  import { env } from "../lib/env.svelte.js";
 
   // OpenRouter key + model now live inside this manager — the
   // Workbooks-built-in row is the only thing that uses them, so
@@ -302,30 +303,17 @@
                 </div>
               </div>
 
-              <!-- Model -->
+              <!-- Model — custom picker pulls the live OpenRouter
+                   catalog (cached 24h) and renders provider icons
+                   alongside each entry. Free-text fallback preserved
+                   for any model id we don't list. -->
               <div class="flex flex-col gap-1.5">
-                <label for="am-model" class="block font-mono text-[11px] uppercase tracking-wider text-fg-muted">
+                <span class="block font-mono text-[11px] uppercase tracking-wider text-fg-muted">
                   model
-                </label>
-                <input
-                  id="am-model"
-                  type="text"
-                  list="am-model-presets"
-                  placeholder="anthropic/claude-haiku-4.5"
-                  spellcheck="false"
-                  autocomplete="off"
-                  value={env.model}
-                  oninput={(e) => env.setModel(e.currentTarget.value)}
-                  class="w-full bg-page border border-border rounded px-3 py-2 font-mono text-[12px] text-fg
-                         focus:outline-1 focus:outline-accent focus:border-accent"
-                />
-                <datalist id="am-model-presets">
-                  {#each MODEL_PRESETS as m}
-                    <option value={m.id}>{m.label}</option>
-                  {/each}
-                </datalist>
+                </span>
+                <ModelPicker />
                 <span class="font-mono text-[10px] text-fg-faint">
-                  Any OpenRouter model id works · see openrouter.ai/models for the full list.
+                  Pulled live from openrouter.ai/api/v1/models · type to filter or paste any model id.
                 </span>
               </div>
             </div>
