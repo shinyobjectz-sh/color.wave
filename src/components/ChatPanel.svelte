@@ -6,6 +6,17 @@
   import { env } from "../lib/env.svelte.js";
   import { mountInstallPrompt } from "@work.books/runtime/install-prompt";
 
+  let { onOpenAgents } = $props();
+
+  // Friendly label for the active provider — shown in the header
+  // badge AND in the "no key" CTA copy. Centralized here so the
+  // whole header reads from one source.
+  function providerLabel(p) {
+    if (p === "claude") return "Claude Code";
+    if (p === "codex") return "Codex";
+    return "Workbooks Agent";
+  }
+
   let input = $state("");
   let textareaEl;
   let scrollEl;
@@ -81,20 +92,17 @@
 </script>
 
 <section class="flex flex-col min-h-0 flex-1">
-  <!-- Persistent header chrome: agent provider badge on the left,
-       new-thread action on the right. Lives outside the scroll area
-       so it stays visible as the thread grows and never overlaps
-       the first turn's content. -->
-  <header class="flex items-center justify-between gap-2 h-9 px-3 border-b border-border shrink-0">
-    <div class="flex items-center min-w-0">
-      {#if agent.provider !== "builtin"}
-        <div class="px-2 py-0.5 rounded font-mono text-[10px] text-accent border border-accent/40 bg-accent/5 truncate"
-             title={`Chat is running through your ${agent.provider === "claude" ? "Claude Code" : "Codex CLI"} subscription via ACP. Switch back in Manage → Agents.`}>
-          ● {agent.provider === "claude" ? "Claude Code" : "Codex"}
-        </div>
-      {/if}
-    </div>
-    <div class="flex items-center">
+  <!-- Persistent header chrome — three columns:
+       LEFT:    new-thread action (when applicable)
+       CENTER:  the active state, one of:
+                  - "Connect an agent" CTA   (no key set / no provider — opens Agents tab)
+                  - active provider badge    (Workbooks Agent / Claude Code / Codex)
+       RIGHT:   reserved (intentionally empty for visual balance)
+       Center placement reads as the canonical "what's running" indicator
+       — the user's eye lands there before scanning the thread. -->
+  <header class="grid grid-cols-3 items-center gap-2 h-9 px-3 border-b border-border shrink-0">
+    <!-- LEFT: new thread -->
+    <div class="flex items-center justify-start min-w-0">
       {#if agent.thread.length > 0 && !agent.busy}
         <button
           onclick={() => agent.clearThread()}
@@ -103,6 +111,40 @@
         >+ new thread</button>
       {/if}
     </div>
+
+    <!-- CENTER: active-provider badge OR connect-CTA -->
+    <div class="flex items-center justify-center min-w-0">
+      {#if !env.satisfied}
+        <button
+          onclick={() => onOpenAgents?.()}
+          class="px-2.5 py-0.5 rounded font-mono text-[10px] text-accent border border-accent/50 bg-accent/10
+                 hover:bg-accent/20 hover:border-accent transition-colors cursor-pointer truncate"
+          title="No agent connected — click to open the Agents tab and connect one"
+        >
+          ◌ no agent — connect
+        </button>
+      {:else}
+        <div
+          class="px-2.5 py-0.5 rounded font-mono text-[10px] truncate"
+          class:text-accent={agent.provider !== "builtin"}
+          class:border={agent.provider !== "builtin"}
+          class:border-accent={agent.provider !== "builtin"}
+          class:bg-accent={false}
+          class:text-fg-muted={agent.provider === "builtin"}
+          style={agent.provider !== "builtin"
+            ? "border-color: color-mix(in srgb, var(--color-accent) 40%, transparent); background: color-mix(in srgb, var(--color-accent) 5%, transparent);"
+            : ""}
+          title={agent.provider === "builtin"
+            ? "Chat is running through the built-in Workbooks Agent (OpenRouter)."
+            : `Chat is running through your ${providerLabel(agent.provider)} subscription via ACP.`}
+        >
+          ● {providerLabel(agent.provider)}
+        </div>
+      {/if}
+    </div>
+
+    <!-- RIGHT: spacer — keeps the center badge visually centered -->
+    <div></div>
   </header>
 
   <div bind:this={scrollEl} class="flex-1 overflow-y-auto px-4 py-4 space-y-3">

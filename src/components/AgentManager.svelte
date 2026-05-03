@@ -20,6 +20,18 @@
   import { iconUrl } from "@work.books/runtime/storage";
   import Scrollbox from "./Scrollbox.svelte";
   import { agent } from "../lib/agent.svelte.js";
+  import { env, MODEL_PRESETS } from "../lib/env.svelte.js";
+
+  // OpenRouter key + model now live inside this manager — the
+  // Workbooks-built-in row is the only thing that uses them, so
+  // co-locating with the agent that consumes them is clearer than
+  // a separate Settings modal. The legacy SettingsModal entry has
+  // been removed; the gear button on the Workbooks-built-in row
+  // exposes the same controls.
+  let revealOpenRouterKey = $state(false);
+  function openOpenRouterKeysPage() {
+    window.open("https://openrouter.ai/keys", "_blank", "noopener,noreferrer");
+  }
 
   let { open = $bindable(false) } = $props();
 
@@ -176,7 +188,7 @@
               </div>
               {#if a.isNative}
                 <div class="text-[11px] text-fg-muted">
-                  Built into the workbook. Uses your OpenRouter key.
+                  Built into the workbook. Routes through OpenRouter — set your key + model below.
                 </div>
               {:else}
                 <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-muted">
@@ -218,6 +230,91 @@
             <p class="text-[11px] text-amber-200 bg-amber-950/20 border-t border-amber-900/40 px-5 py-3 m-0">
               {a.hint}
             </p>
+          {/if}
+
+          {#if a.isNative}
+            <!-- OpenRouter config — only visible on the built-in
+                 Workbooks Agent row. Used to live in a separate
+                 SettingsModal; consolidated here so the agent picker
+                 + the agent's auth + model live in one place. -->
+            <div class="border-t border-border px-5 py-4 flex flex-col gap-4">
+              <!-- Connected status pill -->
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-mono"
+                      class:text-accent={env.satisfied}
+                      class:text-fg-faint={!env.satisfied}>
+                  {env.satisfied ? "● connected" : "○ no key"}
+                </span>
+                <span class="text-[11px] text-fg-muted">
+                  {env.satisfied
+                    ? "OpenRouter key is set; this agent is ready to chat."
+                    : "Add your OpenRouter API key to enable the built-in agent."}
+                </span>
+              </div>
+
+              <!-- API key -->
+              <div class="flex flex-col gap-1.5">
+                <label for="am-or-key" class="block font-mono text-[11px] uppercase tracking-wider text-fg-muted">
+                  openrouter api key
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    id="am-or-key"
+                    type={revealOpenRouterKey ? "text" : "password"}
+                    placeholder="sk-or-…"
+                    autocomplete="off"
+                    spellcheck="false"
+                    value={env.values.OPENROUTER_API_KEY ?? ""}
+                    oninput={(e) => env.set("OPENROUTER_API_KEY", e.currentTarget.value)}
+                    class="flex-1 bg-page border border-border rounded px-3 py-2 font-mono text-[12px] text-fg
+                           focus:outline-1 focus:outline-accent focus:border-accent"
+                  />
+                  <button
+                    type="button"
+                    onclick={() => revealOpenRouterKey = !revealOpenRouterKey}
+                    class="px-3 rounded border border-border bg-page text-fg-muted hover:text-fg hover:border-border-2 cursor-pointer font-mono text-[11px]"
+                    title={revealOpenRouterKey ? "Hide" : "Show"}
+                  >{revealOpenRouterKey ? "hide" : "show"}</button>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onclick={openOpenRouterKeysPage}
+                    class="font-mono text-[11px] text-fg-muted hover:text-fg cursor-pointer underline underline-offset-2 bg-transparent border-0 p-0"
+                  >Open openrouter.ai/keys ↗</button>
+                  <span class="font-mono text-[10px] text-fg-faint">
+                    Stored locally · sent only to OpenRouter.
+                  </span>
+                </div>
+              </div>
+
+              <!-- Model -->
+              <div class="flex flex-col gap-1.5">
+                <label for="am-model" class="block font-mono text-[11px] uppercase tracking-wider text-fg-muted">
+                  model
+                </label>
+                <input
+                  id="am-model"
+                  type="text"
+                  list="am-model-presets"
+                  placeholder="anthropic/claude-haiku-4.5"
+                  spellcheck="false"
+                  autocomplete="off"
+                  value={env.model}
+                  oninput={(e) => env.setModel(e.currentTarget.value)}
+                  class="w-full bg-page border border-border rounded px-3 py-2 font-mono text-[12px] text-fg
+                         focus:outline-1 focus:outline-accent focus:border-accent"
+                />
+                <datalist id="am-model-presets">
+                  {#each MODEL_PRESETS as m}
+                    <option value={m.id}>{m.label}</option>
+                  {/each}
+                </datalist>
+                <span class="font-mono text-[10px] text-fg-faint">
+                  Any OpenRouter model id works · see openrouter.ai/models for the full list.
+                </span>
+              </div>
+            </div>
           {/if}
 
           {#if result && result.ok}

@@ -2,7 +2,10 @@
   import LeftPanel from "./components/LeftPanel.svelte";
   import Player from "./components/Player.svelte";
   import Timeline from "./components/Timeline.svelte";
-  import SettingsModal from "./components/SettingsModal.svelte";
+  // SettingsModal removed in 0.4.x — its only content (OpenRouter
+  // key + model) now lives inline on the Workbooks-built-in row of
+  // AgentManager. The Settings menu item + ⌘, shortcut both route to
+  // AgentManager now.
   import RenderModal from "./components/RenderModal.svelte";
   import Splitter from "./components/Splitter.svelte";
   import MenuBar from "./components/MenuBar.svelte";
@@ -22,7 +25,6 @@
   // the SDK's save handler (it serializes <wb-doc> state into the
   // .workbook.html file with its own toast). Nothing to wire here.
 
-  let settingsOpen = $state(false);
   let renderOpen = $state(false);
   let skillsOpen = $state(false);
   let integrationsOpen = $state(false);
@@ -112,7 +114,11 @@
     if (mcpMode) return;
     if (!env.satisfied && !sessionStorage.getItem("hf.settings.nudged")) {
       sessionStorage.setItem("hf.settings.nudged", "1");
-      settingsOpen = true;
+      // Settings → OpenRouter key now lives in the Agent Manager
+      // (see src/components/AgentManager.svelte). The first-run
+      // nudge opens that instead so users land on the same surface
+      // the rest of the chat-header CTAs route to.
+      agentsOpen = true;
     }
   });
 
@@ -139,7 +145,7 @@
       onExportHyperframe={onExportHyperframe}
       onPackage={onPackage}
       onRender={() => renderOpen = true}
-      onSettings={() => settingsOpen = true}
+      onSettings={() => agentsOpen = true}
       onSave={triggerSave}
       onHistory={() => historyOpen = true}
       onSkillManager={() => skillsOpen = true}
@@ -190,7 +196,7 @@
          min by accident. -->
     <div class="flex flex-col min-h-0 border-r border-border"
          style="width: {layout.chatWidth}px; flex-shrink: 0;">
-      <LeftPanel />
+      <LeftPanel onOpenAgents={() => agentsOpen = true} />
     </div>
 
     <Splitter
@@ -221,7 +227,6 @@
   </div>
 </div>
 
-<SettingsModal bind:open={settingsOpen} />
 <RenderModal bind:open={renderOpen} />
 <SkillManager bind:open={skillsOpen} />
 <IntegrationManager bind:open={integrationsOpen} />

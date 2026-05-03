@@ -2,7 +2,33 @@
   import { composition } from "../lib/composition.svelte.js";
   import { layout, ZOOM_PRESETS, ASPECT_PRESETS } from "../lib/layout.svelte.js";
   import { togglePlay, restart as restartPlayback, fmtTime as fmtTransport } from "../lib/transport.svelte.js";
+  import { adjustments, ADJUSTMENT_TRACK_BASE } from "../lib/adjustments.svelte.js";
+  import { SHADER_CATALOG } from "../lib/adjustmentsRender.js";
   import RangeEditorPopover from "./RangeEditorPopover.svelte";
+
+  // Group adjustment layers by `trackIndex - ADJUSTMENT_TRACK_BASE`
+  // so they get their own dedicated rows visually-separated from the
+  // clip lanes above. Lower index = higher row (closer to clips).
+  let adjustmentLanes = $derived.by(() => {
+    const byLane = new Map();
+    for (const a of adjustments.items) {
+      const offset = (a.trackIndex ?? ADJUSTMENT_TRACK_BASE) - ADJUSTMENT_TRACK_BASE;
+      const lane = byLane.get(offset) ?? [];
+      lane.push(a);
+      byLane.set(offset, lane);
+    }
+    const max = Math.max(-1, ...byLane.keys());
+    const out = Array.from({ length: max + 1 }, () => []);
+    for (const [k, v] of byLane) {
+      v.sort((a, b) => a.start - b.start);
+      out[k] = v;
+    }
+    return out;
+  });
+
+  function shaderLabel(shader) {
+    return SHADER_CATALOG[shader]?.label ?? shader;
+  }
 
   let rangeEditor = $state(null); // { clip, anchor: {x, y} }
 
@@ -399,6 +425,25 @@
     border-radius: 4px;
     overflow: hidden;
   }
+  /* Adjustment-layer bars — visually distinct from clips so users
+   * read them as "this affects everything underneath in time" not
+   * "this is content." Dashed border + accent-tinted fill + accent
+   * left-stripe gives the After Effects-style adjustment-layer feel.
+   * v0 is read-only; drag/trim affordances come in a follow-up. */
+  .adjustment-clip {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--color-accent) 65%, transparent);
+    border-left: 3px solid var(--color-accent);
+    border-radius: var(--studio-clip-radius);
+    color: color-mix(in srgb, var(--color-accent) 90%, white);
+    text-shadow: 0 1px 0 rgba(0,0,0,0.45);
+    transition: background-color 120ms ease, border-color 120ms ease;
+    user-select: none;
+  }
+  .adjustment-clip:hover {
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 85%, transparent);
+  }
   .studio-clip {
     background: var(--color-studio-clip-bg);
     border: 1px solid var(--color-studio-clip-border);
@@ -670,6 +715,29 @@
           <div class="studio-row h-9 flex items-center justify-center font-mono text-[11px] text-fg-faint">
             no clips · ask the agent to add a scene
           </div>
+        {/if}
+
+        <!-- Adjustment layers — time-anchored shader/filter passes
+             (CRT, scanlines, glitch, VHS, grain, color-grade). Each
+             layer's filter applies to the iframe body whenever the
+             playhead is inside its [start, start+duration] window.
+             Visually distinct from clips: dashed border + accent tint
+             + the shader's label rendered in the bar. -->
+        {#if adjustmentLanes.length > 0}
+          <div class="studio-row h-1 my-1 bg-border-2 opacity-40"></div>
+          {#each adjustmentLanes as lane, li (`adj-lane-${li}`)}
+            <div class="studio-row relative h-9">
+              {#each lane as a, i (a.id + ":" + i)}
+                <div
+                  title={`${a.id} · ${shaderLabel(a.shader)}\n${a.start.toFixed(2)}s → ${(a.start + a.duration).toFixed(2)}s${a.label ? `\n${a.label}` : ""}`}
+                  class="adjustment-clip absolute top-0.5 bottom-0.5 font-mono text-[11px] leading-7 px-2.5 truncate"
+                  style="left: {a.start * layout.pps}px; width: {Math.max(2, a.duration * layout.pps)}px;"
+                >
+                  <span class="opacity-60 mr-1 pointer-events-none">fx</span><span class="pointer-events-none">{a.label || shaderLabel(a.shader)}</span>
+                </div>
+              {/each}
+            </div>
+          {/each}
         {/if}
 
         <!-- Playhead -->

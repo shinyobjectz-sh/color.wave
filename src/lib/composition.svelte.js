@@ -7,6 +7,8 @@ import { INITIAL_COMPOSITION, IFRAME_RUNTIME, IFRAME_RUNTIME_AUTOPLAY } from "./
 import { assets } from "./assets.svelte.js";
 import { effects } from "./effects.svelte.js";
 import { renderEffects } from "./effectsRender.js";
+import { renderAdjustments } from "./adjustmentsRender.js";
+import { adjustments } from "./adjustments.svelte.js";
 import { wb } from "@work.books/runtime";
 import { recordEdit } from "./historyBackend.svelte.js";
 
@@ -244,7 +246,13 @@ class CompositionStore {
     const rev = this.revision;
     const body = this.html;
     const fx = renderEffects(effects.items);
-    return `<!DOCTYPE html><html><body data-rev="${rev}">${body}\n${fx}\n${IFRAME_RUNTIME}</body></html>`;
+    // Adjustment layers — time-anchored shader/filter passes (CRT,
+    // scanlines, glitch, VHS, grain, color-grade). Inject the SVG
+    // <defs> + the inline tick-driven runtime that swaps body's
+    // `filter:` chain based on which layers' [start, start+duration]
+    // windows contain the current playhead. See adjustmentsRender.js.
+    const adj = renderAdjustments(adjustments.items);
+    return `<!DOCTYPE html><html><body data-rev="${rev}">${body}\n${fx}\n${adj}\n${IFRAME_RUNTIME}</body></html>`;
   }
 
   /** Replace the entire composition; the player remounts.

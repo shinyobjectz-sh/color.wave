@@ -14,6 +14,11 @@
   // cursors all survive a tab swap.
 
   const mcpMode = isMcpMode();
+
+  // Forwarded from App.svelte → opens the Agent Manager modal. The
+  // chat header's "no agent — connect" CTA fires this so users land
+  // on the agents tab from the same surface they're chatting in.
+  let { onOpenAgents } = $props();
 </script>
 
 <section class="flex min-h-0 flex-1">
@@ -73,7 +78,7 @@
        its content's natural width when the chat column is dragged. -->
   <div class="flex-1 flex flex-col min-w-0 min-h-0">
     <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "chat"}>
-      <ChatPanel />
+      <ChatPanel {onOpenAgents} />
     </div>
     <div class="flex-1 flex flex-col min-h-0" class:hidden={layout.leftTab !== "assets"}>
       <AssetsPanel />

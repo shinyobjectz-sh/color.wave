@@ -329,6 +329,140 @@ function effectsTools() {
         return JSON.stringify(summary);
       },
     },
+
+    // ── adjustment layers ────────────────────────────────────────
+    //
+    // Time-anchored shader / filter passes that ride the timeline like
+    // clips do. Use these when the user wants a LOOK applied during a
+    // specific time window — "make this 5-second section feel like a
+    // VHS dub", "add a CRT effect to the intro", "color-grade the
+    // chorus warmer." Distinct from `effect_*` (parametric controls
+    // bound to specific elements) and `addClip` (content). Built-in
+    // shaders: crt, scanlines, glitch, vhs, grain, colorgrade — see
+    // src/skills/adjustments/ for params + examples.
+
+    {
+      definition: {
+        name: "adjustment_create",
+        description:
+          "Create an adjustment layer — a shader/filter applied to the " +
+          "composition during [start, start+duration]. After Effects-style. " +
+          "Picks from the built-in shader catalog: crt, scanlines, glitch, " +
+          "vhs, grain, colorgrade. Each shader has its own params object " +
+          "(see the adjustments skill). Returns the new layer's id.\n\n" +
+          "Example — CRT effect on the intro, seconds 0 to 4:\n" +
+          "  shader: 'crt', start: 0, duration: 4,\n" +
+          "  params: { scanlineIntensity: 0.5, rgbShift: 2 }\n\n" +
+          "Example — color-grade the whole composition warm:\n" +
+          "  shader: 'colorgrade', start: 0, duration: composition.totalDuration,\n" +
+          "  params: { saturation: 1.1, hue: 8, contrast: 1.05 }",
+        parameters: {
+          type: "object",
+          properties: {
+            id:         { type: "string", description: "Optional explicit id; auto-generated if omitted" },
+            shader:     { type: "string", enum: ["crt", "scanlines", "glitch", "vhs", "grain", "colorgrade"] },
+            start:      { type: "number", description: "Seconds into the timeline" },
+            duration:   { type: "number", description: "Seconds the layer is active" },
+            params:     { type: "object", description: "Shader-specific uniforms; see adjustments skill" },
+            opacity:    { type: "number", description: "0..1, default 1" },
+            blendMode:  { type: "string", enum: ["normal", "screen", "multiply", "overlay"] },
+            label:      { type: "string", description: "Optional friendly name shown on the timeline bar" },
+            trackIndex: { type: "number", description: "Optional lane id (≥100); auto-assigned if omitted" },
+          },
+          required: ["shader", "start", "duration"],
+        },
+      },
+      invoke: async (args) => {
+        const { adjustments } = await import("./adjustments.svelte.js");
+        const id = args.id ?? adjustments.mintId();
+        const entry = adjustments.upsert({
+          id,
+          shader: args.shader,
+          start: args.start,
+          duration: args.duration,
+          params: args.params ?? {},
+          opacity: args.opacity ?? 1,
+          blendMode: args.blendMode ?? "normal",
+          label: args.label,
+          trackIndex: args.trackIndex,
+          createdBy: "agent",
+        });
+        // No revision bump needed — adjustments are read by buildSrcdoc
+        // via the reactive `adjustments.items` array, same as effects.
+        return JSON.stringify({ ok: true, id: entry.id, shader: entry.shader });
+      },
+    },
+    {
+      definition: {
+        name: "adjustment_update",
+        description:
+          "Patch an adjustment layer by id. Common cases: nudge timing " +
+          "(`start` / `duration`), tweak a param (`params`), rename " +
+          "(`label`). Param patches MERGE into existing params (not " +
+          "replace), so passing { params: { rgbShift: 3 } } leaves " +
+          "scanlineIntensity etc. intact.",
+        parameters: {
+          type: "object",
+          properties: {
+            id:         { type: "string" },
+            shader:     { type: "string" },
+            start:      { type: "number" },
+            duration:   { type: "number" },
+            params:     { type: "object" },
+            opacity:    { type: "number" },
+            blendMode:  { type: "string" },
+            label:      { type: "string" },
+            trackIndex: { type: "number" },
+          },
+          required: ["id"],
+        },
+      },
+      invoke: async ({ id, ...patch }) => {
+        const { adjustments } = await import("./adjustments.svelte.js");
+        const next = adjustments.update(id, patch);
+        if (!next) return JSON.stringify({ ok: false, message: `no adjustment with id ${id}` });
+        return JSON.stringify({ ok: true, id: next.id });
+      },
+    },
+    {
+      definition: {
+        name: "adjustment_delete",
+        description: "Remove an adjustment layer by id.",
+        parameters: {
+          type: "object",
+          properties: { id: { type: "string" } },
+          required: ["id"],
+        },
+      },
+      invoke: async ({ id }) => {
+        const { adjustments } = await import("./adjustments.svelte.js");
+        const ok = adjustments.remove(id);
+        return JSON.stringify({ ok });
+      },
+    },
+    {
+      definition: {
+        name: "adjustment_list",
+        description:
+          "Return the current adjustment layers (id, shader, start, duration, " +
+          "params). Always call this before adding new layers — duplicates " +
+          "(two CRT layers covering the same window) compose, which usually " +
+          "isn't what the user wanted.",
+        parameters: { type: "object", properties: {} },
+      },
+      invoke: async () => {
+        const { adjustments } = await import("./adjustments.svelte.js");
+        const summary = adjustments.items.map((a) => ({
+          id: a.id,
+          shader: a.shader,
+          start: a.start,
+          duration: a.duration,
+          params: a.params,
+          label: a.label,
+        }));
+        return JSON.stringify(summary);
+      },
+    },
   ];
 }
 
