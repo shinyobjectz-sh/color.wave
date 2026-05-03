@@ -289,6 +289,15 @@ export function createPluginApi(pluginId, store) {
       const store = await getComposition();
       store.revision += 1;
     },
+    /** Mutate the composition source. The store's `set` records an
+     *  audit entry; pass a short message describing the edit. Used by
+     *  plugins that perform destructive-with-undo edits (e.g.
+     *  silence-cutter writing data-cuts attrs). For non-destructive
+     *  view changes, prefer addRenderDecorator. */
+    async write(html, auditMessage) {
+      const store = await getComposition();
+      store.set(html, auditMessage ?? `${pluginId}: composition edit`);
+    },
   };
 
   return api;

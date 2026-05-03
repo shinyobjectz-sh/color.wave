@@ -16,6 +16,33 @@
   // when active — they opt in to background-survival themselves.
 
   const mcpMode = isMcpMode();
+
+  // Mount fallback for plain-JS plugins that registered { mount(el) }
+  // instead of a Svelte component. Mirrors PluginsPanel's mountSection
+  // — runs the mount fn on attach, runs its returned cleanup on detach,
+  // and re-mounts when the function reference changes (plugin upgrade).
+  function mountTab(node, fn) {
+    let cleanup;
+    let currentFn = fn;
+    function start() {
+      try { cleanup = currentFn(node); }
+      catch (e) { console.warn("plugin tab mount threw:", e); }
+    }
+    function stop() {
+      if (typeof cleanup === "function") {
+        try { cleanup(); } catch (e) { console.warn("plugin tab cleanup threw:", e); }
+      }
+      cleanup = undefined;
+    }
+    start();
+    return {
+      update(nextFn) {
+        if (nextFn === currentFn) return;
+        stop(); currentFn = nextFn; start();
+      },
+      destroy: stop,
+    };
+  }
 </script>
 
 <section class="flex min-h-0 flex-1">
@@ -104,7 +131,11 @@
     {#each panelTabs as tab (tab.pluginId + ":" + tab.id)}
       {#if layout.leftTab === `plugin:${tab.id}`}
         <div class="flex-1 flex flex-col min-h-0">
-          <tab.component />
+          {#if tab.component}
+            <tab.component />
+          {:else if tab.mount}
+            <div class="flex-1 min-h-0 overflow-auto" use:mountTab={tab.mount}></div>
+          {/if}
         </div>
       {/if}
     {/each}
